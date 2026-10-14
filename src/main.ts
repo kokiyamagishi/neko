@@ -420,6 +420,14 @@ function bootstrap(): void {
     engine.camera.updateProjectionMatrix();
   };
 
+  hud.onCycleCatZoom = () => {
+    return catController.cycleCameraZoom();
+  };
+
+  hud.onSetCatZoom = (dist: number) => {
+    catController.setCameraDistance(dist);
+  };
+
   hud.onSnapPhoto = () => {
     try {
       const dataUrl = engine.renderer.domElement.toDataURL('image/png');
@@ -448,6 +456,7 @@ function bootstrap(): void {
     getRunState: () => ({
       elapsedRunSeconds,
       clearTimeSeconds,
+      isPaused: hud.isPaused,
       allCleared: isAllCleared()
     })
   };
@@ -455,10 +464,11 @@ function bootstrap(): void {
   // 6. Main Game Loop
   engine.onUpdate((delta: number, elapsed: number) => {
     const isNight = atmosphere.currentTimeOfDay === 'night';
+    const paused = hud.isPaused;
 
-    // Advance timer once game is started until all tasks are cleared
+    // Advance timer once game is started and NOT paused until all tasks are cleared
     const clearedNow = isAllCleared();
-    if (isGameStarted && !clearedNow && clearTimeSeconds === null) {
+    if (isGameStarted && !paused && !clearedNow && clearTimeSeconds === null) {
       elapsedRunSeconds += delta;
     } else if (isGameStarted && clearedNow && clearTimeSeconds === null) {
       clearTimeSeconds = Math.max(0.1, elapsedRunSeconds);
@@ -470,16 +480,18 @@ function bootstrap(): void {
       }
     }
 
-    catController.update(delta, elapsed, hud.isPhotoMode);
+    catController.update(delta, elapsed, hud.isPhotoMode, paused);
     monument.update(delta, elapsed);
     waterSystem.update(delta, elapsed, catController.position, isNight);
-    foliageAndProps.update(delta, elapsed, catController.position);
-    wildlife.update(
-      delta,
-      elapsed,
-      catController.position,
-      catController.state === 'swat'
-    );
+    if (!paused) {
+      foliageAndProps.update(delta, elapsed, catController.position);
+      wildlife.update(
+        delta,
+        elapsed,
+        catController.position,
+        catController.state === 'swat'
+      );
+    }
     atmosphere.update(
       delta,
       elapsed,

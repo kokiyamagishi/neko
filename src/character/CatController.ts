@@ -192,33 +192,49 @@ export class CatController {
       'wheel',
       (e) => {
         const target = e.target as HTMLElement | null;
-        if (target && target.closest('.hud-scrollable')) {
+        if (target && (target.closest('dialog') || target.closest('.hud-scrollable'))) {
           return;
         }
         this.cameraDistance = THREE.MathUtils.clamp(
-          this.cameraDistance + e.deltaY * 0.0035,
-          2.5,
-          14.0
+          this.cameraDistance + e.deltaY * 0.0032,
+          2.4,
+          7.2
         );
       },
       { passive: true }
     );
 
-    // Mobile Touch Orbit & Pinch-to-Zoom (coexists with Left Virtual Thumbstick)
+    const isHudTouchTarget = (target: EventTarget | null): boolean => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      return Boolean(
+        el.closest('button') ||
+          el.closest('input') ||
+          el.closest('dialog') ||
+          el.closest('.nl-joystick-zone') ||
+          el.closest('.nl-top-bar') ||
+          el.closest('.nl-controls-bar') ||
+          el.closest('.nl-glass-card')
+      );
+    };
+
+    const getSceneTouches = (touches: TouchList): Touch[] => {
+      const list: Touch[] = [];
+      for (let i = 0; i < touches.length; i++) {
+        if (!isHudTouchTarget(touches[i].target)) {
+          list.push(touches[i]);
+        }
+      }
+      return list;
+    };
+
+    // Mobile Touch Orbit & 3D Cat Camera Pinch-Zoom (never interferes with Left Joystick + Right Action buttons)
     window.addEventListener(
       'touchstart',
       (e) => {
         for (let i = 0; i < e.changedTouches.length; i++) {
           const t = e.changedTouches[i];
-          const target = t.target as HTMLElement | null;
-          if (
-            target &&
-            (target.closest('button') ||
-              target.closest('input') ||
-              target.closest('dialog') ||
-              target.closest('.nl-joystick-zone') ||
-              target.closest('.nl-glass-card'))
-          ) {
+          if (isHudTouchTarget(t.target)) {
             continue;
           }
           if (this.cameraTouchId === null) {
@@ -227,9 +243,10 @@ export class CatController {
             this.lastTouchY = t.clientY;
           }
         }
-        if (e.touches.length === 2) {
-          const dx = e.touches[0].clientX - e.touches[1].clientX;
-          const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const sceneTouches = getSceneTouches(e.touches);
+        if (sceneTouches.length === 2) {
+          const dx = sceneTouches[0].clientX - sceneTouches[1].clientX;
+          const dy = sceneTouches[0].clientY - sceneTouches[1].clientY;
           this.pinchStartDist = Math.hypot(dx, dy);
           this.pinchStartCamDist = this.cameraDistance;
         }
@@ -240,15 +257,16 @@ export class CatController {
     window.addEventListener(
       'touchmove',
       (e) => {
-        if (e.touches.length === 2 && this.pinchStartDist > 10) {
-          const dx = e.touches[0].clientX - e.touches[1].clientX;
-          const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const sceneTouches = getSceneTouches(e.touches);
+        if (sceneTouches.length === 2 && this.pinchStartDist > 16) {
+          const dx = sceneTouches[0].clientX - sceneTouches[1].clientX;
+          const dy = sceneTouches[0].clientY - sceneTouches[1].clientY;
           const dist = Math.hypot(dx, dy);
-          const scale = this.pinchStartDist / Math.max(10, dist);
+          const scale = this.pinchStartDist / Math.max(16, dist);
           this.cameraDistance = THREE.MathUtils.clamp(
             this.pinchStartCamDist * scale,
-            2.5,
-            14.0
+            2.4,
+            7.2
           );
           return;
         }
@@ -277,12 +295,27 @@ export class CatController {
           this.cameraTouchId = null;
         }
       }
-      if (e.touches.length < 2) {
+      if (getSceneTouches(e.touches).length < 2) {
         this.pinchStartDist = 0;
       }
     };
     window.addEventListener('touchend', endTouch, { passive: true });
     window.addEventListener('touchcancel', endTouch, { passive: true });
+  }
+
+  public cycleCameraZoom(): number {
+    if (this.cameraDistance > 5.4) {
+      this.cameraDistance = 4.5; // Normal
+    } else if (this.cameraDistance > 3.4) {
+      this.cameraDistance = 2.6; // Close up to Cat!
+    } else {
+      this.cameraDistance = 6.5; // Wide view
+    }
+    return this.cameraDistance;
+  }
+
+  public setCameraDistance(dist: number): void {
+    this.cameraDistance = THREE.MathUtils.clamp(dist, 2.4, 7.2);
   }
 
   public setJoystickInput(x: number, y: number, sprint = false): void {
@@ -380,8 +413,18 @@ export class CatController {
     this.onClimbUsed?.(climbable.id);
   }
 
-  public update(delta: number, elapsed: number, photoModeActive: boolean): void {
+  public update(
+    delta: number,
+    elapsed: number,
+    photoModeActive: boolean,
+    isPaused = false
+  ): void {
     const dt = Math.min(delta, 0.05);
+
+    if (isPaused && !photoModeActive) {
+      this.updateCamera(dt);
+      return;
+    }
 
     // Keyboard camera rotation keys (Q / Z or [ / ])
     const camRotSpeed = 1.95;

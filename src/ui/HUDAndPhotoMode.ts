@@ -56,16 +56,22 @@ export class HUDAndPhotoMode {
   public onContinueGame?: () => void;
   public onResetRun?: () => void;
   public onDownloadClearCard?: (clearSeconds: number) => void;
+  public onCycleCatZoom?: () => number;
+  public onSetCatZoom?: (dist: number) => void;
 
   private root: HTMLElement;
   private mainHud: HTMLElement;
   private photoOverlay: HTMLElement;
   private flowerCountEl: HTMLElement;
+  private menuFlowerCountEl: HTMLElement;
   private flowerBarFillEl: HTMLElement;
   private timerValueEl: HTMLElement;
+  private menuTimerValueEl: HTMLElement;
+  private pauseIndicatorEl: HTMLElement;
   private elevationBadgeEl: HTMLElement;
   private promptBannerEl: HTMLElement;
   private toastContainerEl: HTMLElement;
+  private menuDialog: HTMLDialogElement;
   private startDialog: HTMLDialogElement;
   private startContinueBtn: HTMLButtonElement;
   private coatDialog: HTMLDialogElement;
@@ -78,8 +84,9 @@ export class HUDAndPhotoMode {
   private victoryStatTasksEl: HTMLElement;
   private openVictoryBtn: HTMLButtonElement;
   private muteBtn: HTMLButtonElement;
-  private checklistCardEl: HTMLElement;
   private checklistProgressEl: HTMLElement;
+  private menuChecklistProgressEl: HTMLElement;
+  private catZoomSliderEl: HTMLInputElement;
   private checklistItems: Record<string, HTMLElement> = {};
   private todButtons: Record<TimeOfDay, HTMLButtonElement[]> = {
     morning: [],
@@ -101,143 +108,79 @@ export class HUDAndPhotoMode {
 
     this.root.innerHTML = `
       <div class="nl-hud-wrapper" id="nl-main-hud">
-        <!-- Top Left: Brand, Timer, Dok Champa Counter, Restart Button & Park Checklist -->
-        <aside class="nl-left-column">
-          <div class="nl-glass-card nl-brand-card">
-            <div class="nl-brand-header">
-              <div>
-                <h1 class="nl-title">ແມວລາວ NekoLao</h1>
-                <p class="nl-subtitle">🌼 Issarapon School • ສວນປະຕູໄຊ</p>
-              </div>
-              <span class="nl-elevation-badge" id="nl-elevation-badge">ເດີ່ນສວນ • 0.0 ແມັດ</span>
+        <!-- Minimalist Top HUD Bar: Only Timer, Flower Count, Mission Count + Cat Zoom & Hamburger Menu -->
+        <header class="nl-top-bar">
+          <button
+            type="button"
+            class="nl-status-pill"
+            id="nl-status-pill-btn"
+            title="ແຕະເພື່ອເບິ່ງພາລະກິດ ແລະ ເມນູ"
+          >
+            <div class="nl-status-metrics">
+              <span class="nl-metric-item nl-metric-timer">
+                <span class="nl-pause-dot is-hidden" id="nl-pause-indicator">⏸️</span>
+                ⏱️ <strong id="nl-timer-value">00:00.0</strong>
+              </span>
+              <span class="nl-metric-divider">•</span>
+              <span class="nl-metric-item nl-metric-flowers">
+                🌼 <strong id="nl-flower-count">0/30</strong>
+              </span>
+              <span class="nl-metric-divider">•</span>
+              <span class="nl-metric-item nl-metric-tasks">
+                ✅ <strong id="nl-checklist-progress">0/6</strong>
+              </span>
             </div>
-
-            <div class="nl-timer-row">
-              <span class="nl-timer-label">⏱️ ເວລາ:</span>
-              <strong class="nl-timer-value" id="nl-timer-value">0 ນາທີ 00.0 ວິນາທີ</strong>
-              <button type="button" class="nl-mini-icon-btn" id="nl-open-start-btn" title="ໜ້າເລີ່ມເກມ">
-                🏠
-              </button>
+            <div class="nl-mini-progress-track">
+              <div class="nl-mini-progress-fill" id="nl-flower-bar" style="width: 0%"></div>
             </div>
+          </button>
 
-            <div class="nl-flower-progress">
-              <div class="nl-flower-row">
-                <span class="nl-flower-icon" aria-hidden="true">🌼</span>
-                <span class="nl-flower-label">ດອກຈຳປາ</span>
-                <strong class="nl-flower-count" id="nl-flower-count">0 / 30</strong>
-              </div>
-              <div class="nl-progress-track">
-                <div class="nl-progress-fill" id="nl-flower-bar" style="width: 0%"></div>
-              </div>
-            </div>
-
-            <div class="nl-game-control-row">
-              <button type="button" class="nl-restart-btn" id="nl-reset-run-btn" title="ເລີ່ມຫຼິ້ນໃໝ່ຕັ້ງແຕ່ຕົ້ນ">
-                🔄 ເລີ່ມໃໝ່ຕັ້ງແຕ່ຕົ້ນ
-              </button>
-              <button type="button" class="nl-share-hud-btn" id="nl-open-victory-btn" title="ເບິ່ງເວລາ & ແຊຣ໌ລົງ SNS">
-                🏆 ແຊຣ໌ SNS
-              </button>
-            </div>
-          </div>
-
-          <div class="nl-glass-card nl-checklist-card" id="nl-checklist-card" aria-label="ພາລະກິດແມວນ້ອຍ">
-            <button type="button" class="nl-card-heading-btn" id="nl-toggle-checklist-btn">
-              <span>ພາລະກິດແມວນ້ອຍ</span>
-              <span class="nl-checklist-progress" id="nl-checklist-progress">0/6 ▾</span>
+          <div class="nl-top-right-btns">
+            <button
+              type="button"
+              class="nl-icon-pill-btn"
+              id="nl-zoom-cat-btn"
+              title="ຊູມເບິ່ງແມວໃກ້/ໄກ"
+              aria-label="ຊູມແມວ"
+            >
+              🔍 <span class="nl-btn-text-sm">ຊູມແມວ</span>
             </button>
-            <ul class="nl-checklist-list" id="nl-checklist-list">
-              <li class="nl-check-item" data-check="underArch">
-                <span class="nl-check-box"></span>
-                <span>ຍ່າງລອດໃຕ້ປະຕູໄຊ</span>
-              </li>
-              <li class="nl-check-item" data-check="splashedFountain">
-                <span class="nl-check-box"></span>
-                <span>ຫຼິ້ນນ້ຳໃນອ່າງນ້ຳພຸດົນຕີ</span>
-              </li>
-              <li class="nl-check-item" data-check="battedKoi">
-                <span class="nl-check-box"></span>
-                <span>ຕະປົບປາຄາບໃນໜອງບົວ <kbd>F</kbd></span>
-              </li>
-              <li class="nl-check-item" data-check="chasedPigeons">
-                <span class="nl-check-box"></span>
-                <span>ໄລ່ນົກກາງແກໃນເດີ່ນ</span>
-              </li>
-              <li class="nl-check-item" data-check="swattedProp">
-                <span class="nl-check-box"></span>
-                <span>ປັດກະຕ່າດອກໄມ້ບູຊາ <kbd>F</kbd></span>
-              </li>
-              <li class="nl-check-item" data-check="reachedRooftop">
-                <span class="nl-check-box"></span>
-                <span>ຂຶ້ນສູ່ດາດຟ້າປະຕູໄຊ</span>
-              </li>
-            </ul>
+            <button
+              type="button"
+              class="nl-hamburger-btn"
+              id="nl-open-menu-btn"
+              title="ເປີດເມນູ & ຢຸດເວລາຊົ່ວຄາວ"
+              aria-label="ເມນູ"
+            >
+              ☰ <span>ເມນູ</span>
+            </button>
           </div>
-        </aside>
-
-        <!-- Top Right: Atmosphere, Fast Travel, Wardrobe & Photo Mode -->
-        <aside class="nl-right-column">
-          <div class="nl-glass-card nl-toolbar-card">
-            <div class="nl-toolbar-group">
-              <span class="nl-group-label">ທ້ອງຟ້າ</span>
-              <button type="button" class="nl-pill-btn" data-tod="morning">ຕອນເຊົ້າ</button>
-              <button type="button" class="nl-pill-btn is-active" data-tod="golden_hour">ຍາມແລງ</button>
-              <button type="button" class="nl-pill-btn" data-tod="night">ກາງຄືນ</button>
-            </div>
-            <div class="nl-toolbar-divider"></div>
-            <div class="nl-toolbar-group">
-              <button type="button" class="nl-action-chip" id="nl-open-coat-btn">
-                🐾 ຂົນແມວ <kbd>C</kbd>
-              </button>
-              <button type="button" class="nl-action-chip" id="nl-photo-mode-btn">
-                📷 ຖ່າຍຮູບ <kbd>P</kbd>
-              </button>
-              <button type="button" class="nl-action-chip" id="nl-mute-btn" aria-label="ເປີດ/ປິດສຽງ">
-                🔊 ສຽງ <kbd>M</kbd>
-              </button>
-            </div>
-          </div>
-
-          <div class="nl-glass-card nl-travel-card">
-            <span class="nl-group-label">ຈຸດຊົມວິວ</span>
-            <button type="button" class="nl-mini-btn" data-travel="fountain">ເດີ່ນນ້ຳພຸ</button>
-            <button type="button" class="nl-mini-btn" data-travel="archway">ໃຕ້ປະຕູໄຊ</button>
-            <button type="button" class="nl-mini-btn" data-travel="rooftop">ດາດຟ້າ (16m)</button>
-          </div>
-        </aside>
+        </header>
 
         <!-- Mobile & Touch Virtual Thumbstick (Bottom Left) -->
         <div class="nl-joystick-zone" id="nl-joystick-zone" aria-label="ປຸ່ມຄວບຄຸມທິດທາງ">
           <div class="nl-joystick-base" id="nl-joystick-base">
-            <div class="nl-joystick-Ring"></div>
             <div class="nl-joystick-knob" id="nl-joystick-knob">🐾</div>
           </div>
-          <span class="nl-joystick-hint">ລາກເພື່ອຍ່າງ / ແລ່ນ</span>
         </div>
 
-        <!-- Bottom Center/Right: Contextual Prompt + Cat Action Bar -->
+        <!-- Bottom Right: Contextual Prompt + Compact Cat Action Buttons -->
         <div class="nl-bottom-dock">
           <div class="nl-prompt-banner is-hidden" id="nl-prompt-banner"></div>
 
           <div class="nl-glass-card nl-controls-bar">
-            <div class="nl-move-hint">
-              <kbd>WASD</kbd> ຍ່າງ
-              <kbd>Shift</kbd> ແລ່ນໄວ
-              <kbd>ລາກ</kbd> ໝຸນກ້ອງ
-            </div>
-            <div class="nl-toolbar-divider nl-desktop-only"></div>
             <div class="nl-cat-actions">
-              <button type="button" class="nl-cat-btn" data-action="jump">
-                🦘 ໂດດ <kbd>Space</kbd>
+              <button type="button" class="nl-cat-btn nl-cat-btn-primary" data-action="jump">
+                🦘 <span>ໂດດ</span>
+              </button>
+              <button type="button" class="nl-cat-btn nl-cat-btn-accent" data-action="swat">
+                🐾 <span>ຕະປົບ/ປີນ</span>
               </button>
               <button type="button" class="nl-cat-btn" data-action="meow">
-                🐱 ຮ້ອງແມວ <kbd>E</kbd>
-              </button>
-              <button type="button" class="nl-cat-btn" data-action="swat">
-                🐾 ຕະປົບ/ປີນ <kbd>F</kbd>
+                🐱 <span>ຮ້ອງ</span>
               </button>
               <button type="button" class="nl-cat-btn" data-action="loaf">
-                ☀️ ນອນໝອບ <kbd>Q</kbd>
+                ☀️ <span>ນອນ</span>
               </button>
             </div>
           </div>
@@ -268,13 +211,148 @@ export class HUDAndPhotoMode {
             📸 ບັນທຶກຮູບໂປສກາດ
           </button>
           <button type="button" class="nl-action-chip" id="nl-exit-photo-btn">
-            ✕ ອອກ <kbd>P</kbd>
+            ✕ ອອກ
           </button>
         </div>
       </div>
 
       <!-- Toast Container -->
       <div class="nl-toast-container" id="nl-toast-container" aria-live="polite"></div>
+
+      <!-- Hamburger Menu & Pause Modal (Pauses Gameplay & Stops Timer while open) -->
+      <dialog id="menu-dialog" class="nl-menu-dialog" closedby="any" aria-labelledby="menuDialogTitle">
+        <div class="nl-dialog-form nl-menu-scroll-body">
+          <div class="nl-menu-header">
+            <div>
+              <span class="nl-pause-badge">⏸️ ຢຸດເກມຊົ່ວຄາວ • ໂມງຈັບເວລາຢຸດແລ້ວ</span>
+              <h2 id="menuDialogTitle" class="nl-menu-title">🌼 Issarapon School • ແມວລາວ</h2>
+            </div>
+            <button type="button" class="nl-dialog-close" id="nl-close-menu-x" aria-label="ປິດເມນູ">✕</button>
+          </div>
+
+          <button type="button" class="nl-resume-big-btn" id="nl-resume-menu-btn">
+            ▶️ ຫຼິ້ນຕໍ່ (RESUME GAME)
+          </button>
+
+          <!-- Current Timer & Flowers Summary inside Menu -->
+          <div class="nl-menu-stats-card">
+            <div class="nl-menu-stat-box">
+              <span class="nl-menu-stat-label">⏱️ ເວລາປັດຈຸບັນ</span>
+              <strong class="nl-menu-stat-val" id="nl-menu-timer-value">0 ນາທີ 00.0 ວິນາທີ</strong>
+            </div>
+            <div class="nl-menu-stat-box">
+              <span class="nl-menu-stat-label">🌼 ດອກຈຳປາ</span>
+              <strong class="nl-menu-stat-val" id="nl-menu-flower-count">0 / 30</strong>
+            </div>
+            <div class="nl-menu-stat-box">
+              <span class="nl-menu-stat-label">📍 ຕຳແໜ່ງ</span>
+              <strong class="nl-menu-stat-val" id="nl-elevation-badge">ເດີ່ນສວນ • 0.0m</strong>
+            </div>
+          </div>
+
+          <!-- Restart & SNS Share Buttons -->
+          <div class="nl-menu-action-row">
+            <button type="button" class="nl-restart-btn" id="nl-reset-run-btn">
+              🔄 ເລີ່ມໃໝ່ຕັ້ງແຕ່ຕົ້ນ
+            </button>
+            <button type="button" class="nl-share-hud-btn" id="nl-open-victory-btn">
+              🏆 ແຊຣ໌ເວລາ SNS
+            </button>
+          </div>
+
+          <!-- 6 Cat Checklist Missions -->
+          <div class="nl-menu-section">
+            <div class="nl-menu-section-head">
+              <span>🐾 ພາລະກິດແມວນ້ອຍ</span>
+              <span class="nl-checklist-progress" id="nl-menu-checklist-progress">0/6</span>
+            </div>
+            <ul class="nl-checklist-list" id="nl-checklist-list">
+              <li class="nl-check-item" data-check="underArch">
+                <span class="nl-check-box"></span>
+                <span>ຍ່າງລອດໃຕ້ປະຕູໄຊ</span>
+              </li>
+              <li class="nl-check-item" data-check="splashedFountain">
+                <span class="nl-check-box"></span>
+                <span>ຫຼິ້ນນ້ຳໃນອ່າງນ້ຳພຸດົນຕີ</span>
+              </li>
+              <li class="nl-check-item" data-check="battedKoi">
+                <span class="nl-check-box"></span>
+                <span>ຕະປົບປາຄາບໃນໜອງບົວ (🐾)</span>
+              </li>
+              <li class="nl-check-item" data-check="chasedPigeons">
+                <span class="nl-check-box"></span>
+                <span>ໄລ່ນົກກາງແກໃນເດີ່ນ</span>
+              </li>
+              <li class="nl-check-item" data-check="swattedProp">
+                <span class="nl-check-box"></span>
+                <span>ປັດກະຕ່າດອກໄມ້ບູຊາ (🐾)</span>
+              </li>
+              <li class="nl-check-item" data-check="reachedRooftop">
+                <span class="nl-check-box"></span>
+                <span>ຂຶ້ນສູ່ດາດຟ້າປະຕູໄຊ</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Cat Camera Zoom Slider -->
+          <div class="nl-menu-section">
+            <div class="nl-menu-section-head">
+              <span>🔍 ໄລຍະກ້ອງເບິ່ງແມວ (ຊູມແມວ)</span>
+            </div>
+            <div class="nl-zoom-slider-row">
+              <span>ໃກ້ແມວ</span>
+              <input
+                id="nl-cat-zoom-slider"
+                type="range"
+                min="2.4"
+                max="7.2"
+                step="0.2"
+                value="4.6"
+              />
+              <span>ມຸມກວ້າງ</span>
+            </div>
+          </div>
+
+          <!-- Atmosphere, Coat, Photo Mode & Sound -->
+          <div class="nl-menu-section">
+            <div class="nl-menu-section-head">
+              <span>🌅 ບັນຍາກາດ & ການຕັ້ງຄ່າ</span>
+            </div>
+            <div class="nl-toolbar-group" style="margin-bottom: 8px;">
+              <span class="nl-group-label">ທ້ອງຟ້າ:</span>
+              <button type="button" class="nl-pill-btn" data-tod="morning">☀️ ຕອນເຊົ້າ</button>
+              <button type="button" class="nl-pill-btn is-active" data-tod="golden_hour">🌅 ຍາມແລງ</button>
+              <button type="button" class="nl-pill-btn" data-tod="night">🌙 ກາງຄືນ</button>
+            </div>
+            <div class="nl-toolbar-group">
+              <button type="button" class="nl-action-chip" id="nl-open-coat-btn">
+                🐾 ປ່ຽນຂົນແມວ
+              </button>
+              <button type="button" class="nl-action-chip" id="nl-photo-mode-btn">
+                📷 ໂໝດຖ່າຍຮູບ
+              </button>
+              <button type="button" class="nl-action-chip" id="nl-mute-btn">
+                🔊 ສຽງ
+              </button>
+              <button type="button" class="nl-action-chip" id="nl-open-start-btn">
+                🏠 ໜ້າທຳອິດ
+              </button>
+            </div>
+          </div>
+
+          <!-- Fast Travel Viewpoints -->
+          <div class="nl-menu-section">
+            <div class="nl-menu-section-head">
+              <span>⛲ ຍ້າຍໄປຈຸດຊົມວິວທັນທີ</span>
+            </div>
+            <div class="nl-toolbar-group">
+              <button type="button" class="nl-mini-btn" data-travel="fountain">⛲ ເດີ່ນນ້ຳພຸ</button>
+              <button type="button" class="nl-mini-btn" data-travel="archway">🏛️ ໃຕ້ປະຕູໄຊ</button>
+              <button type="button" class="nl-mini-btn" data-travel="rooftop">🏯 ດາດຟ້າ (16m)</button>
+            </div>
+          </div>
+        </div>
+      </dialog>
 
       <!-- Center-Screen Game Start Modal -->
       <dialog id="start-dialog" class="nl-start-dialog" aria-labelledby="startDialogTitle">
@@ -339,7 +417,7 @@ export class HUDAndPhotoMode {
           </div>
 
           <div class="nl-dialog-footer">
-            <span>ແຕະດ້ານນອກ ຫຼື ກົດ <kbd>Esc</kbd> ເພື່ອກັບຄືນ</span>
+            <span>ແຕະດ້ານນອກ ເພື່ອກັບຄືນ</span>
             <button type="submit" class="nl-pill-btn is-active">ຕົກລົງ</button>
           </div>
         </form>
@@ -406,11 +484,15 @@ export class HUDAndPhotoMode {
     this.mainHud = this.root.querySelector('#nl-main-hud')!;
     this.photoOverlay = this.root.querySelector('#nl-photo-overlay')!;
     this.flowerCountEl = this.root.querySelector('#nl-flower-count')!;
+    this.menuFlowerCountEl = this.root.querySelector('#nl-menu-flower-count')!;
     this.flowerBarFillEl = this.root.querySelector('#nl-flower-bar')!;
     this.timerValueEl = this.root.querySelector('#nl-timer-value')!;
+    this.menuTimerValueEl = this.root.querySelector('#nl-menu-timer-value')!;
+    this.pauseIndicatorEl = this.root.querySelector('#nl-pause-indicator')!;
     this.elevationBadgeEl = this.root.querySelector('#nl-elevation-badge')!;
     this.promptBannerEl = this.root.querySelector('#nl-prompt-banner')!;
     this.toastContainerEl = this.root.querySelector('#nl-toast-container')!;
+    this.menuDialog = this.root.querySelector('#menu-dialog') as HTMLDialogElement;
     this.startDialog = this.root.querySelector('#start-dialog') as HTMLDialogElement;
     this.startContinueBtn = this.root.querySelector('#nl-start-continue-btn') as HTMLButtonElement;
     this.coatDialog = this.root.querySelector('#coat-dialog') as HTMLDialogElement;
@@ -423,11 +505,38 @@ export class HUDAndPhotoMode {
     this.victoryStatTasksEl = this.root.querySelector('#nl-victory-stat-tasks')!;
     this.openVictoryBtn = this.root.querySelector('#nl-open-victory-btn') as HTMLButtonElement;
     this.muteBtn = this.root.querySelector('#nl-mute-btn') as HTMLButtonElement;
-    this.checklistCardEl = this.root.querySelector('#nl-checklist-card')!;
     this.checklistProgressEl = this.root.querySelector('#nl-checklist-progress')!;
+    this.menuChecklistProgressEl = this.root.querySelector('#nl-menu-checklist-progress')!;
+    this.catZoomSliderEl = this.root.querySelector('#nl-cat-zoom-slider') as HTMLInputElement;
 
     this.bindEvents();
     this.bindVirtualJoystick();
+  }
+
+  /**
+   * Returns true whenever any modal menu (Hamburger Menu, Start Screen, Coat Wardrobe, Victory Screen)
+   * or Photo Mode is open so gameplay & the speedrun timer pause automatically.
+   */
+  public get isPaused(): boolean {
+    return (
+      this.menuDialog.open ||
+      this.startDialog.open ||
+      this.coatDialog.open ||
+      this.victoryDialog.open ||
+      this.isPhotoMode
+    );
+  }
+
+  public openMenu(): void {
+    if (!this.menuDialog.open) {
+      this.menuDialog.showModal();
+    }
+  }
+
+  public closeMenu(): void {
+    if (this.menuDialog.open) {
+      this.menuDialog.close();
+    }
   }
 
   private bindEvents(): void {
@@ -437,18 +546,48 @@ export class HUDAndPhotoMode {
       if (key) this.checklistItems[key] = el;
     });
 
-    // Checklist collapse toggle (helpful on mobile screens)
-    const toggleChecklistBtn = this.root.querySelector(
-      '#nl-toggle-checklist-btn'
-    ) as HTMLButtonElement;
-    toggleChecklistBtn.addEventListener('click', () => {
-      this.checklistCardEl.classList.toggle('is-collapsed');
+    // Open & Close Hamburger Menu
+    const openMenuBtn = this.root.querySelector('#nl-open-menu-btn') as HTMLButtonElement;
+    const statusPillBtn = this.root.querySelector('#nl-status-pill-btn') as HTMLButtonElement;
+    const closeMenuX = this.root.querySelector('#nl-close-menu-x') as HTMLButtonElement;
+    const resumeMenuBtn = this.root.querySelector('#nl-resume-menu-btn') as HTMLButtonElement;
+
+    openMenuBtn.addEventListener('click', () => {
+      this.openMenu();
+      openMenuBtn.blur();
     });
 
-    // Auto-collapse checklist on small mobile viewports initially so 3D view is maximally open
-    if (window.innerWidth <= 768) {
-      this.checklistCardEl.classList.add('is-collapsed');
-    }
+    statusPillBtn.addEventListener('click', () => {
+      this.openMenu();
+      statusPillBtn.blur();
+    });
+
+    closeMenuX.addEventListener('click', () => {
+      this.closeMenu();
+    });
+
+    resumeMenuBtn.addEventListener('click', () => {
+      this.closeMenu();
+    });
+
+    // Quick Cat Camera Zoom Button & Slider
+    const zoomCatBtn = this.root.querySelector('#nl-zoom-cat-btn') as HTMLButtonElement;
+    zoomCatBtn.addEventListener('click', () => {
+      const newDist = this.onCycleCatZoom?.() ?? 4.5;
+      this.catZoomSliderEl.value = String(newDist);
+      if (newDist <= 3.0) {
+        this.showToast('🔍 ຊູມເຂົ້າໃກ້ແມວລາວ');
+      } else if (newDist >= 5.8) {
+        this.showToast('🔍 ມຸມກ້ອງກວ້າງ');
+      } else {
+        this.showToast('🔍 ມຸມກ້ອງປົກກະຕິ');
+      }
+      zoomCatBtn.blur();
+    });
+
+    this.catZoomSliderEl.addEventListener('input', () => {
+      this.onSetCatZoom?.(Number(this.catZoomSliderEl.value));
+    });
 
     // Time of Day buttons
     this.root.querySelectorAll<HTMLButtonElement>('[data-tod]').forEach((btn) => {
@@ -460,10 +599,11 @@ export class HUDAndPhotoMode {
       });
     });
 
-    // Fast Travel buttons
+    // Fast Travel buttons (inside menu: close menu on travel so user sees destination immediately)
     this.root.querySelectorAll<HTMLButtonElement>('[data-travel]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const dest = btn.dataset.travel as 'fountain' | 'archway' | 'rooftop';
+        this.closeMenu();
         this.onFastTravel?.(dest);
         btn.blur();
       });
@@ -482,16 +622,19 @@ export class HUDAndPhotoMode {
     const startNewBtn = this.root.querySelector('#nl-start-new-btn') as HTMLButtonElement;
     startNewBtn.addEventListener('click', () => {
       this.startDialog.close();
+      this.closeMenu();
       this.onStartNewGame?.();
     });
 
     this.startContinueBtn.addEventListener('click', () => {
       this.startDialog.close();
+      this.closeMenu();
       this.onContinueGame?.();
     });
 
     const openStartBtn = this.root.querySelector('#nl-open-start-btn') as HTMLButtonElement;
     openStartBtn.addEventListener('click', () => {
+      this.closeMenu();
       this.showStartModal(true);
       openStartBtn.blur();
     });
@@ -499,12 +642,14 @@ export class HUDAndPhotoMode {
     // Mid-game Restart from Beginning button
     const resetRunBtn = this.root.querySelector('#nl-reset-run-btn') as HTMLButtonElement;
     resetRunBtn.addEventListener('click', () => {
+      this.closeMenu();
       this.onResetRun?.();
       resetRunBtn.blur();
     });
 
     // Open Victory / SNS Share Modal button
     this.openVictoryBtn.addEventListener('click', () => {
+      this.closeMenu();
       this.showVictoryModal(this.lastClearSeconds);
       this.openVictoryBtn.blur();
     });
@@ -512,6 +657,7 @@ export class HUDAndPhotoMode {
     // Coat Dialog Open & Mandatory Light-Dismiss Fallback
     const openCoatBtn = this.root.querySelector('#nl-open-coat-btn') as HTMLButtonElement;
     openCoatBtn.addEventListener('click', () => {
+      this.closeMenu();
       this.openCoatModal();
       openCoatBtn.blur();
     });
@@ -532,6 +678,7 @@ export class HUDAndPhotoMode {
         });
       }
     };
+    attachLightDismissFallback(this.menuDialog);
     attachLightDismissFallback(this.coatDialog);
     attachLightDismissFallback(this.victoryDialog);
 
@@ -628,6 +775,7 @@ export class HUDAndPhotoMode {
     const fovSlider = this.root.querySelector('#nl-fov-slider') as HTMLInputElement;
 
     photoBtn.addEventListener('click', () => {
+      this.closeMenu();
       this.togglePhotoMode(true);
       photoBtn.blur();
     });
@@ -660,7 +808,7 @@ export class HUDAndPhotoMode {
     const knob = this.root.querySelector('#nl-joystick-knob') as HTMLElement;
 
     let activePointerId: number | null = null;
-    const maxRadius = 42;
+    const maxRadius = 40;
 
     const updateStick = (clientX: number, clientY: number) => {
       const rect = base.getBoundingClientRect();
@@ -758,9 +906,7 @@ export class HUDAndPhotoMode {
   }
 
   public updateMuteLabel(muted: boolean): void {
-    this.muteBtn.innerHTML = muted
-      ? '🔇 ປິດສຽງ <kbd>M</kbd>'
-      : '🔊 ສຽງ <kbd>M</kbd>';
+    this.muteBtn.innerHTML = muted ? '🔇 ປິດສຽງ' : '🔊 ສຽງ';
   }
 
   public togglePhotoMode(force?: boolean): void {
@@ -783,34 +929,37 @@ export class HUDAndPhotoMode {
     window.setTimeout(() => {
       toast.classList.add('is-leaving');
       window.setTimeout(() => toast.remove(), 320);
-    }, 3100);
+    }, 2800);
   }
 
   public updateState(data: HUDUpdateData): void {
-    // 1. Update Flower Counter
+    // 1. Update Flower Counter (compact top pill + menu detail)
     this.lastFlowers = data.flowers;
     this.lastTotalFlowers = data.totalFlowers;
-    this.flowerCountEl.textContent = `${data.flowers} / ${data.totalFlowers}`;
+    this.flowerCountEl.textContent = `${data.flowers}/${data.totalFlowers}`;
+    this.menuFlowerCountEl.textContent = `${data.flowers} / ${data.totalFlowers}`;
     const pct = Math.min(100, Math.round((data.flowers / Math.max(1, data.totalFlowers)) * 100));
     this.flowerBarFillEl.style.width = `${pct}%`;
 
-    // 2. Update Timer
+    // 2. Update Timer (compact digital in top bar + full Lao format inside menu)
     const displaySecs =
       data.isCleared && data.clearTimeSeconds !== null
         ? data.clearTimeSeconds
         : data.elapsedSeconds;
-    this.timerValueEl.textContent = formatLaoMinutesSeconds(displaySecs);
+    this.timerValueEl.textContent = formatDigitalTime(displaySecs);
+    this.menuTimerValueEl.textContent = formatLaoMinutesSeconds(displaySecs);
     this.timerValueEl.classList.toggle('is-cleared', data.isCleared);
+    this.pauseIndicatorEl.classList.toggle('is-hidden', !this.isPaused);
     this.openVictoryBtn.classList.toggle('is-cleared-glow', data.isCleared);
     this.lastClearSeconds = displaySecs;
 
-    // 3. Update Elevation Badge in Lao
+    // 3. Update Elevation Badge inside Menu
     if (data.elevationY >= 14.5) {
-      this.elevationBadgeEl.textContent = `ດາດຟ້າປະຕູໄຊ • ${data.elevationY.toFixed(1)} ແມັດ`;
+      this.elevationBadgeEl.textContent = `ດາດຟ້າ • ${data.elevationY.toFixed(1)}m`;
     } else if (data.elevationY >= 2.0) {
-      this.elevationBadgeEl.textContent = `ປະຕູໄຊ • ${data.elevationY.toFixed(1)} ແມັດ`;
+      this.elevationBadgeEl.textContent = `ປະຕູໄຊ • ${data.elevationY.toFixed(1)}m`;
     } else {
-      this.elevationBadgeEl.textContent = `ເດີ່ນສວນ • ${data.elevationY.toFixed(1)} ແມັດ`;
+      this.elevationBadgeEl.textContent = `ເດີ່ນສວນ • ${data.elevationY.toFixed(1)}m`;
     }
 
     // 4. Update Checklist
@@ -823,7 +972,8 @@ export class HUDAndPhotoMode {
       }
     }
     this.lastDoneTasks = doneCount;
-    this.checklistProgressEl.textContent = `${doneCount}/6 ▾`;
+    this.checklistProgressEl.textContent = `${doneCount}/6`;
+    this.menuChecklistProgressEl.textContent = `${doneCount}/6`;
 
     // 5. Update Time of Day active button state
     (['morning', 'golden_hour', 'night'] as TimeOfDay[]).forEach((tod) => {
@@ -841,10 +991,8 @@ export class HUDAndPhotoMode {
     let bannerMessage: string | null = data.promptText;
     if (!bannerMessage && data.activeNapSpot) {
       bannerMessage = data.isLoafing
-        ? `☀️ ກຳລັງນອນໝອບຄາງຮືໆຢູ່ ${data.activeNapSpot} — ກົດ [Q] ຫຼື ຍ່າງເພື່ອຕື່ນ`
-        : `☀️ ບ່ອນນອນອາບແດດ: ${data.activeNapSpot} — ກົດ [Q] ເພື່ອນອນໝອບ`;
-    } else if (!bannerMessage && data.isLoafing) {
-      bannerMessage = '🐾 ແມວກຳລັງນອນໝອບພັກຜ່ອນ — ກົດ [Q] ຫຼື ຍ່າງເພື່ອລຸກຂຶ້ນ';
+        ? `☀️ ກຳລັງນອນໝອບຢູ່ ${data.activeNapSpot}`
+        : `☀️ ບ່ອນນອນອາບແດດ: ${data.activeNapSpot}`;
     }
 
     if (bannerMessage) {
@@ -865,10 +1013,11 @@ export class HUDAndPhotoMode {
         inset: 0;
         pointer-events: none;
         display: flex;
+        flex-direction: column;
         justify-content: space-between;
-        padding: 16px 20px;
+        padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
         z-index: 20;
-        transition: opacity 0.25s ease;
+        touch-action: none;
         font-family: 'Noto Sans Lao', 'Plus Jakarta Sans', sans-serif;
       }
       .nl-hud-wrapper.is-hidden,
@@ -878,214 +1027,442 @@ export class HUDAndPhotoMode {
         display: none !important;
       }
 
-      .nl-left-column,
-      .nl-right-column {
+      /* Minimalist Top HUD Bar */
+      .nl-top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        pointer-events: none;
+      }
+
+      .nl-status-pill {
+        pointer-events: auto;
+        touch-action: manipulation;
+        cursor: pointer;
+        background: rgba(20, 15, 11, 0.78);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1.5px solid rgba(255, 209, 102, 0.45);
+        border-radius: 999px;
+        padding: 6px 14px 7px;
+        color: #fff9f0;
+        font-family: inherit;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        max-width: 345px;
+        gap: 4px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.38);
+        transition: border-color 0.16s ease, transform 0.16s ease;
       }
-      .nl-right-column {
-        align-items: flex-end;
-        max-width: 470px;
-      }
-
-      .nl-glass-card {
-        pointer-events: auto;
-        background: rgba(24, 18, 14, 0.76);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        border: 1px solid rgba(255, 209, 102, 0.36);
-        border-radius: 16px;
-        padding: 12px 15px;
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
-        color: #fff9f0;
+      .nl-status-pill:active {
+        transform: scale(0.97);
       }
 
-      .nl-brand-header {
+      .nl-status-metrics {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin-bottom: 8px;
-      }
-      .nl-title {
-        font-family: 'Noto Sans Lao', 'Fredoka', sans-serif;
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #ffd166;
-        line-height: 1.2;
-      }
-      .nl-subtitle {
-        font-size: 0.75rem;
-        color: #e2d4c0;
-        margin-top: 2px;
-      }
-      .nl-elevation-badge {
-        font-size: 0.72rem;
-        font-weight: 600;
-        padding: 4px 9px;
-        border-radius: 999px;
-        background: rgba(46, 196, 182, 0.22);
-        border: 1px solid rgba(46, 196, 182, 0.55);
-        color: #9bf6ee;
+        gap: 7px;
+        font-size: 0.84rem;
         white-space: nowrap;
       }
-
-      .nl-timer-row {
-        display: flex;
+      .nl-metric-item {
+        display: inline-flex;
         align-items: center;
-        gap: 6px;
-        background: rgba(255, 209, 102, 0.11);
-        border: 1px solid rgba(255, 209, 102, 0.28);
-        border-radius: 10px;
-        padding: 5px 9px;
-        margin-bottom: 9px;
-        font-size: 0.78rem;
+        gap: 3px;
       }
-      .nl-timer-label {
-        color: #e2d4c0;
-        font-weight: 600;
-      }
-      .nl-timer-value {
-        flex: 1;
-        color: #fff9f0;
-        font-weight: 700;
+      .nl-metric-timer strong {
+        font-family: 'Fredoka', monospace;
+        font-size: 0.94rem;
+        color: #ffd166;
         font-variant-numeric: tabular-nums;
       }
-      .nl-timer-value.is-cleared {
+      .nl-metric-timer strong.is-cleared {
         color: #2ec4b6;
       }
-      .nl-mini-icon-btn {
-        cursor: pointer;
-        border: 1px solid rgba(255, 209, 102, 0.4);
-        background: rgba(255, 248, 235, 0.12);
-        color: #ffd166;
-        border-radius: 6px;
-        padding: 2px 7px;
-        font-family: inherit;
-        font-size: 0.7rem;
-        font-weight: 600;
+      .nl-metric-flowers strong {
+        color: #fff9f0;
+        font-weight: 800;
       }
-      .nl-mini-icon-btn:hover {
-        background: rgba(255, 209, 102, 0.28);
+      .nl-metric-tasks strong {
+        color: #9bf6ee;
+        font-weight: 700;
+      }
+      .nl-metric-divider {
+        color: rgba(255, 209, 102, 0.4);
+        font-size: 0.75rem;
       }
 
-      .nl-flower-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        font-size: 0.84rem;
-        margin-bottom: 6px;
-      }
-      .nl-flower-label {
-        flex: 1;
-        margin-left: 6px;
-        color: #fff3df;
-        font-weight: 600;
-      }
-      .nl-flower-count {
-        color: #ffd166;
-        font-family: 'Fredoka', sans-serif;
-        font-size: 0.96rem;
-      }
-      .nl-progress-track {
+      .nl-mini-progress-track {
         width: 100%;
-        height: 7px;
-        background: rgba(255, 255, 255, 0.12);
+        height: 4px;
+        background: rgba(255, 255, 255, 0.14);
         border-radius: 999px;
         overflow: hidden;
       }
-      .nl-progress-fill {
+      .nl-mini-progress-fill {
         height: 100%;
         background: linear-gradient(90deg, #ff9f1c, #ffd166, #2ec4b6);
         border-radius: 999px;
-        transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        transition: width 0.3s ease;
       }
 
-      .nl-game-control-row {
+      .nl-top-right-btns {
         display: flex;
-        gap: 6px;
-        margin-top: 10px;
+        align-items: center;
+        gap: 7px;
+        pointer-events: auto;
       }
-      .nl-restart-btn,
-      .nl-share-hud-btn {
+
+      .nl-icon-pill-btn,
+      .nl-hamburger-btn {
         cursor: pointer;
-        flex: 1;
-        border-radius: 10px;
-        padding: 6px 8px;
+        touch-action: manipulation;
+        border-radius: 999px;
         font-family: inherit;
-        font-size: 0.74rem;
         font-weight: 700;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 5px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.38);
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+      .nl-icon-pill-btn {
+        background: rgba(20, 15, 11, 0.78);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1.5px solid rgba(255, 209, 102, 0.42);
+        color: #fff9f0;
+        padding: 8px 12px;
+        font-size: 0.82rem;
+      }
+      .nl-hamburger-btn {
+        background: linear-gradient(135deg, #ffd166, #ff9f1c);
+        border: none;
+        color: #1c130c;
+        padding: 8px 15px;
+        font-size: 0.86rem;
+        font-weight: 800;
+      }
+      .nl-icon-pill-btn:active,
+      .nl-hamburger-btn:active {
+        transform: scale(0.95);
+      }
+
+      .nl-glass-card {
+        pointer-events: auto;
+        touch-action: manipulation;
+        background: rgba(20, 15, 11, 0.75);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 209, 102, 0.36);
+        border-radius: 18px;
+        padding: 8px 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
+        color: #fff9f0;
+      }
+
+      /* Virtual Joystick for Mobile / Touch */
+      .nl-joystick-zone {
+        position: fixed;
+        bottom: max(16px, env(safe-area-inset-bottom));
+        left: max(16px, env(safe-area-inset-left));
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        pointer-events: auto;
+        touch-action: none;
+        z-index: 25;
+      }
+      .nl-joystick-base {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: rgba(24, 18, 14, 0.56);
+        backdrop-filter: blur(8px);
+        border: 2px solid rgba(255, 209, 102, 0.42);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+      }
+      .nl-joystick-base.is-active {
+        border-color: #ffd166;
+        background: rgba(38, 28, 20, 0.75);
+      }
+      .nl-joystick-knob {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ffd166, #ff9f1c);
+        color: #1d150e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+      }
+
+      /* Bottom Right Action Controls */
+      .nl-bottom-dock {
+        position: fixed;
+        bottom: max(16px, env(safe-area-inset-bottom));
+        right: max(14px, env(safe-area-inset-right));
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        z-index: 22;
+        max-width: calc(100vw - 140px);
+      }
+      .nl-prompt-banner {
+        pointer-events: auto;
+        background: rgba(158, 27, 36, 0.92);
+        border: 1.5px solid #ffd166;
+        color: #fff9f0;
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+        text-align: center;
+      }
+      .nl-controls-bar {
+        padding: 7px 9px;
+        border-radius: 20px;
+      }
+      .nl-cat-actions {
+        display: grid;
+        grid-template-columns: repeat(2, auto);
+        gap: 6px;
+      }
+
+      .nl-pill-btn,
+      .nl-action-chip,
+      .nl-mini-btn,
+      .nl-cat-btn {
+        cursor: pointer;
+        touch-action: manipulation;
+        border: 1px solid rgba(255, 209, 102, 0.35);
+        background: rgba(255, 248, 235, 0.1);
+        color: #fff9f0;
+        font-family: inherit;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 8px 12px;
+        border-radius: 999px;
+        transition: transform 0.12s ease, background 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         gap: 4px;
-        transition: all 0.16s ease;
+      }
+      .nl-cat-btn-primary {
+        background: rgba(255, 209, 102, 0.24);
+        border-color: #ffd166;
+        color: #ffd166;
+      }
+      .nl-cat-btn-accent {
+        background: rgba(46, 196, 182, 0.22);
+        border-color: rgba(46, 196, 182, 0.65);
+        color: #9bf6ee;
+      }
+      .nl-pill-btn:active,
+      .nl-action-chip:active,
+      .nl-mini-btn:active,
+      .nl-cat-btn:active {
+        transform: scale(0.94);
+      }
+      .nl-pill-btn.is-active {
+        background: #ffd166;
+        color: #1d150e;
+        border-color: #ffd166;
+        font-weight: 800;
+      }
+
+      /* Hamburger Menu & Pause Dialog */
+      .nl-menu-dialog,
+      .nl-start-dialog,
+      .nl-coat-dialog,
+      .nl-victory-dialog {
+        margin: auto;
+        border: 2px solid rgba(255, 209, 102, 0.72);
+        border-radius: 22px;
+        background: rgba(22, 16, 12, 0.96);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        color: #fff9f0;
+        padding: 0;
+        max-width: 500px;
+        width: calc(100vw - 24px);
+        max-height: 88vh;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+        font-family: 'Noto Sans Lao', 'Plus Jakarta Sans', sans-serif;
+      }
+      .nl-menu-dialog::backdrop,
+      .nl-start-dialog::backdrop,
+      .nl-coat-dialog::backdrop,
+      .nl-victory-dialog::backdrop {
+        background-color: rgba(10, 7, 5, 0.68);
+        backdrop-filter: blur(5px);
+      }
+      .nl-dialog-form {
+        padding: 18px 20px;
+      }
+      .nl-menu-scroll-body {
+        max-height: 84vh;
+        overflow-y: auto;
+        touch-action: pan-y;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .nl-menu-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .nl-pause-badge {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #9bf6ee;
+        background: rgba(46, 196, 182, 0.18);
+        border: 1px solid rgba(46, 196, 182, 0.5);
+        padding: 2px 9px;
+        border-radius: 999px;
+        margin-bottom: 4px;
+      }
+      .nl-menu-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #ffd166;
+      }
+
+      .nl-resume-big-btn {
+        cursor: pointer;
+        touch-action: manipulation;
+        width: 100%;
+        padding: 12px 16px;
+        border-radius: 14px;
+        border: none;
+        background: linear-gradient(135deg, #2ec4b6, #209c90);
+        color: #0e1716;
+        font-family: inherit;
+        font-size: 0.98rem;
+        font-weight: 800;
+        box-shadow: 0 6px 18px rgba(46, 196, 182, 0.35);
+      }
+
+      .nl-menu-stats-card {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        background: rgba(255, 248, 235, 0.06);
+        border: 1px solid rgba(255, 209, 102, 0.28);
+        border-radius: 14px;
+        padding: 10px;
+      }
+      .nl-menu-stat-box {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        text-align: center;
+      }
+      .nl-menu-stat-label {
+        font-size: 0.68rem;
+        color: #d8c7b0;
+      }
+      .nl-menu-stat-val {
+        font-size: 0.8rem;
+        color: #ffd166;
+        font-weight: 700;
+      }
+
+      .nl-menu-action-row {
+        display: flex;
+        gap: 8px;
+      }
+      .nl-restart-btn,
+      .nl-share-hud-btn {
+        cursor: pointer;
+        touch-action: manipulation;
+        flex: 1;
+        border-radius: 12px;
+        padding: 9px 10px;
+        font-family: inherit;
+        font-size: 0.8rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
       }
       .nl-restart-btn {
         background: rgba(255, 159, 28, 0.18);
         border: 1px solid rgba(255, 209, 102, 0.55);
         color: #ffd166;
       }
-      .nl-restart-btn:hover {
-        background: rgba(255, 209, 102, 0.32);
-        transform: translateY(-1px);
-      }
       .nl-share-hud-btn {
         background: rgba(46, 196, 182, 0.2);
         border: 1px solid rgba(46, 196, 182, 0.6);
         color: #9bf6ee;
       }
-      .nl-share-hud-btn:hover {
-        background: rgba(46, 196, 182, 0.35);
-        transform: translateY(-1px);
-      }
       .nl-share-hud-btn.is-cleared-glow {
         background: linear-gradient(135deg, #ffd166, #ff9f1c);
         color: #1c130c;
         border-color: #ffd166;
-        box-shadow: 0 0 14px rgba(255, 209, 102, 0.55);
       }
 
-      .nl-card-heading-btn {
-        width: 100%;
-        background: none;
-        border: none;
+      .nl-menu-section {
+        background: rgba(255, 248, 235, 0.04);
+        border: 1px solid rgba(255, 209, 102, 0.22);
+        border-radius: 14px;
+        padding: 11px 13px;
+      }
+      .nl-menu-section-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        font-family: inherit;
-        font-size: 0.8rem;
-        color: #ffd166;
+        font-size: 0.82rem;
         font-weight: 700;
-        cursor: pointer;
-        padding: 0;
+        color: #ffd166;
         margin-bottom: 8px;
       }
-      .nl-checklist-card.is-collapsed .nl-card-heading-btn {
-        margin-bottom: 0;
+
+      .nl-zoom-slider-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.76rem;
+        color: #e2d4c0;
       }
-      .nl-checklist-card.is-collapsed .nl-checklist-list {
-        display: none;
+      .nl-zoom-slider-row input[type='range'] {
+        flex: 1;
+        accent-color: #ffd166;
       }
+
       .nl-checklist-progress {
-        font-size: 0.74rem;
+        font-size: 0.76rem;
         color: #9bf6ee;
       }
       .nl-checklist-list {
         list-style: none;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 7px;
       }
       .nl-check-item {
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-size: 0.78rem;
+        gap: 6px;
+        font-size: 0.76rem;
         color: #e7dac8;
-        transition: color 0.2s ease;
       }
       .nl-check-box {
         width: 15px;
@@ -1113,170 +1490,16 @@ export class HUDAndPhotoMode {
         font-weight: 800;
       }
 
-      .nl-toolbar-card,
-      .nl-travel-card {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        flex-wrap: wrap;
-        padding: 9px 12px;
-      }
       .nl-toolbar-group {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
         flex-wrap: wrap;
       }
       .nl-group-label {
-        font-size: 0.74rem;
-        color: #d8c7b0;
-        margin-right: 2px;
-        font-weight: 700;
-      }
-      .nl-toolbar-divider {
-        width: 1px;
-        height: 20px;
-        background: rgba(255, 209, 102, 0.25);
-        margin: 0 2px;
-      }
-
-      .nl-pill-btn,
-      .nl-action-chip,
-      .nl-mini-btn,
-      .nl-cat-btn {
-        cursor: pointer;
-        border: 1px solid rgba(255, 209, 102, 0.32);
-        background: rgba(255, 248, 235, 0.09);
-        color: #fff9f0;
-        font-family: inherit;
-        font-size: 0.76rem;
-        font-weight: 600;
-        padding: 6px 10px;
-        border-radius: 999px;
-        transition: all 0.16s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-      }
-      .nl-pill-btn:hover,
-      .nl-action-chip:hover,
-      .nl-mini-btn:hover,
-      .nl-cat-btn:hover {
-        background: rgba(255, 209, 102, 0.24);
-        border-color: #ffd166;
-        transform: translateY(-1px);
-      }
-      .nl-pill-btn.is-active {
-        background: #ffd166;
-        color: #1d150e;
-        border-color: #ffd166;
-        font-weight: 700;
-      }
-
-      kbd {
-        font-family: inherit;
-        font-size: 0.65rem;
-        padding: 1px 5px;
-        border-radius: 4px;
-        background: rgba(0, 0, 0, 0.38);
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        color: #ffd166;
-      }
-
-      /* Virtual Joystick for Mobile / Touch */
-      .nl-joystick-zone {
-        position: fixed;
-        bottom: 22px;
-        left: 22px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 5px;
-        pointer-events: auto;
-        touch-action: none;
-        z-index: 25;
-      }
-      .nl-joystick-base {
-        width: 108px;
-        height: 108px;
-        border-radius: 50%;
-        background: rgba(24, 18, 14, 0.62);
-        backdrop-filter: blur(10px);
-        border: 2px solid rgba(255, 209, 102, 0.45);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-        transition: border-color 0.2s ease, background 0.2s ease;
-      }
-      .nl-joystick-base.is-active {
-        border-color: #ffd166;
-        background: rgba(38, 28, 20, 0.78);
-      }
-      .nl-joystick-knob {
-        width: 46px;
-        height: 46px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #ffd166, #ff9f1c);
-        color: #1d150e;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.2rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-        pointer-events: none;
-      }
-      .nl-joystick-hint {
-        font-size: 0.68rem;
-        color: rgba(255, 249, 240, 0.78);
-        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-      }
-
-      .nl-bottom-dock {
-        position: fixed;
-        bottom: 18px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        z-index: 22;
-      }
-      .nl-prompt-banner {
-        pointer-events: auto;
-        background: linear-gradient(90deg, rgba(158, 27, 36, 0.92), rgba(34, 24, 18, 0.92));
-        border: 1.5px solid #ffd166;
-        color: #fff9f0;
-        padding: 8px 18px;
-        border-radius: 999px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-        text-align: center;
-      }
-      .nl-controls-bar {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 14px;
-        border-radius: 999px;
-      }
-      .nl-move-hint {
-        display: flex;
-        align-items: center;
-        gap: 6px;
         font-size: 0.75rem;
-        color: #e2d4c0;
-        white-space: nowrap;
-      }
-      .nl-cat-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-        justify-content: center;
+        color: #d8c7b0;
+        font-weight: 700;
       }
 
       /* Photo Mode Viewfinder */
@@ -1288,14 +1511,14 @@ export class HUDAndPhotoMode {
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        padding: 24px;
+        padding: 20px;
       }
       .nl-viewfinder-grid {
         position: relative;
         flex: 1;
         border: 1px solid rgba(255, 249, 240, 0.28);
         border-radius: 12px;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
       }
       .nl-vf-corner {
         position: absolute;
@@ -1310,11 +1533,9 @@ export class HUDAndPhotoMode {
       .nl-vf-corner.br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; }
       .nl-vf-stamp {
         position: absolute;
-        bottom: 14px;
-        right: 18px;
-        font-family: 'Noto Sans Lao', 'Fredoka', sans-serif;
-        font-size: 0.85rem;
-        letter-spacing: 0.06em;
+        bottom: 12px;
+        right: 16px;
+        font-size: 0.8rem;
         color: rgba(255, 209, 102, 0.92);
         text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
       }
@@ -1324,9 +1545,9 @@ export class HUDAndPhotoMode {
         align-items: center;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 12px;
+        gap: 10px;
         border-radius: 24px;
-        padding: 10px 18px;
+        padding: 10px 16px;
       }
       .nl-photo-control-item {
         display: flex;
@@ -1349,79 +1570,53 @@ export class HUDAndPhotoMode {
       /* Toast notifications */
       .nl-toast-container {
         position: fixed;
-        top: 18px;
+        top: 62px;
         left: 50%;
         transform: translateX(-50%);
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
         z-index: 45;
         pointer-events: none;
         width: max-content;
-        max-width: 92vw;
+        max-width: 90vw;
       }
       .nl-toast {
         background: rgba(24, 18, 14, 0.92);
         backdrop-filter: blur(10px);
         border: 1.5px solid #ffd166;
         color: #fff9f0;
-        padding: 9px 18px;
+        padding: 7px 15px;
         border-radius: 999px;
-        font-size: 0.84rem;
+        font-size: 0.8rem;
         font-weight: 600;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
-        animation: nlToastIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+        animation: nlToastIn 0.22s ease;
         text-align: center;
       }
       .nl-toast.is-leaving {
         opacity: 0;
-        transform: translateY(-8px);
-        transition: all 0.28s ease;
+        transform: translateY(-6px);
+        transition: all 0.25s ease;
       }
       @keyframes nlToastIn {
-        from { opacity: 0; transform: translateY(-12px); }
+        from { opacity: 0; transform: translateY(-10px); }
         to { opacity: 1; transform: translateY(0); }
       }
 
-      /* Dialogs: Start Modal, Coat Wardrobe & Victory Modal */
-      .nl-start-dialog,
-      .nl-coat-dialog,
-      .nl-victory-dialog {
-        margin: auto;
-        border: 2px solid rgba(255, 209, 102, 0.72);
-        border-radius: 22px;
-        background: rgba(24, 18, 14, 0.95);
-        backdrop-filter: blur(18px);
-        color: #fff9f0;
-        padding: 0;
-        max-width: 540px;
-        width: calc(100vw - 28px);
-        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
-        font-family: 'Noto Sans Lao', 'Plus Jakarta Sans', sans-serif;
-      }
-      .nl-start-dialog::backdrop,
-      .nl-coat-dialog::backdrop,
-      .nl-victory-dialog::backdrop {
-        background-color: rgba(10, 7, 5, 0.65);
-        backdrop-filter: blur(5px);
-      }
-      .nl-dialog-form {
-        padding: 22px 24px;
-      }
       .nl-school-banner {
         display: inline-block;
-        padding: 5px 15px;
+        padding: 5px 14px;
         border-radius: 999px;
         background: linear-gradient(90deg, rgba(90, 22, 32, 0.9), rgba(56, 11, 18, 0.9));
         border: 1.5px solid #ffd166;
         color: #ffd166;
         font-weight: 800;
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         margin-bottom: 10px;
-        letter-spacing: 0.03em;
       }
       .nl-start-title {
-        font-size: 1.65rem;
+        font-size: 1.55rem;
         font-weight: 800;
         color: #ffd166;
         margin-bottom: 6px;
@@ -1431,17 +1626,17 @@ export class HUDAndPhotoMode {
         background: rgba(255, 248, 235, 0.06);
         border: 1px solid rgba(255, 209, 102, 0.32);
         border-radius: 16px;
-        padding: 14px 16px;
-        margin-bottom: 18px;
+        padding: 13px 15px;
+        margin-bottom: 16px;
         display: flex;
         flex-direction: column;
-        gap: 9px;
+        gap: 8px;
       }
       .nl-rule-item {
         display: flex;
         align-items: center;
-        gap: 9px;
-        font-size: 0.84rem;
+        gap: 8px;
+        font-size: 0.82rem;
         color: #f3e8d8;
       }
       .nl-rule-item strong {
@@ -1454,24 +1649,21 @@ export class HUDAndPhotoMode {
       }
       .nl-big-start-btn {
         cursor: pointer;
+        touch-action: manipulation;
         width: 100%;
-        padding: 14px 20px;
+        padding: 13px 18px;
         border-radius: 16px;
         border: none;
         background: linear-gradient(135deg, #ffd166, #ff9f1c);
         color: #1c130c;
         font-family: inherit;
-        font-size: 1.08rem;
+        font-size: 1.04rem;
         font-weight: 800;
         box-shadow: 0 8px 24px rgba(255, 159, 28, 0.42);
-        transition: transform 0.16s ease, box-shadow 0.16s ease;
-      }
-      .nl-big-start-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 28px rgba(255, 209, 102, 0.58);
       }
       .nl-continue-btn {
         cursor: pointer;
+        touch-action: manipulation;
         width: 100%;
         padding: 10px 16px;
         border-radius: 14px;
@@ -1479,62 +1671,56 @@ export class HUDAndPhotoMode {
         background: rgba(46, 196, 182, 0.18);
         color: #9bf6ee;
         font-family: inherit;
-        font-size: 0.88rem;
+        font-size: 0.86rem;
         font-weight: 700;
-        transition: background 0.16s ease;
-      }
-      .nl-continue-btn:hover {
-        background: rgba(46, 196, 182, 0.32);
       }
 
       .nl-dialog-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
       }
       .nl-dialog-title {
-        font-size: 1.25rem;
+        font-size: 1.2rem;
         color: #ffd166;
       }
       .nl-dialog-subtitle {
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         color: #d8c7b0;
-        margin-top: 3px;
+        margin-top: 2px;
       }
       .nl-dialog-close {
         cursor: pointer;
-        width: 32px;
-        height: 32px;
+        touch-action: manipulation;
+        width: 34px;
+        height: 34px;
         border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.1);
         color: #fff9f0;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
+        flex-shrink: 0;
       }
       .nl-coat-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
-        margin-bottom: 18px;
+        gap: 10px;
+        margin-bottom: 16px;
       }
       .nl-coat-option {
         cursor: pointer;
+        touch-action: manipulation;
         text-align: left;
-        padding: 13px;
+        padding: 12px;
         border-radius: 14px;
         border: 1.5px solid rgba(255, 209, 102, 0.25);
         background: rgba(255, 248, 235, 0.05);
         color: #fff9f0;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 5px;
         font-family: inherit;
-        transition: all 0.16s ease;
-      }
-      .nl-coat-option:hover {
-        border-color: rgba(255, 209, 102, 0.65);
-        background: rgba(255, 209, 102, 0.12);
       }
       .nl-coat-option.is-selected {
         border-color: #ffd166;
@@ -1552,13 +1738,13 @@ export class HUDAndPhotoMode {
       .swatch-calico { background: linear-gradient(90deg, #fff5e6 33%, #e37b2f 33%, #e37b2f 66%, #362821 66%); }
       .nl-coat-name {
         font-weight: 700;
-        font-size: 0.86rem;
+        font-size: 0.84rem;
         color: #ffd166;
       }
       .nl-coat-desc {
-        font-size: 0.74rem;
+        font-size: 0.72rem;
         color: #d9cbb8;
-        line-height: 1.35;
+        line-height: 1.3;
       }
       .nl-dialog-footer {
         display: flex;
@@ -1581,88 +1767,83 @@ export class HUDAndPhotoMode {
         border: 1px solid #2ec4b6;
         color: #9bf6ee;
         font-weight: 700;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         margin-bottom: 8px;
       }
       .nl-victory-title {
-        font-size: 1.34rem;
+        font-size: 1.25rem;
         color: #fff9f0;
         margin-bottom: 6px;
       }
       .nl-victory-subtitle {
-        font-size: 0.84rem;
+        font-size: 0.82rem;
         color: #dfd0bc;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
       }
       .nl-victory-time-box {
         background: linear-gradient(135deg, rgba(255, 209, 102, 0.16), rgba(46, 196, 182, 0.14));
         border: 2px solid #ffd166;
         border-radius: 18px;
-        padding: 16px 18px;
-        margin-bottom: 18px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
       }
       .nl-victory-time-label {
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         color: #ffd166;
         font-weight: 600;
       }
       .nl-victory-time-main {
-        font-size: 2.05rem;
+        font-size: 1.85rem;
         font-weight: 800;
         color: #fff9f0;
-        margin: 6px 0 2px;
-        text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+        margin: 4px 0 2px;
       }
       .nl-victory-time-sub {
         font-family: 'Fredoka', monospace;
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         color: #9bf6ee;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
       }
       .nl-victory-stats-row {
         display: flex;
         justify-content: center;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
       }
       .nl-stat-pill {
-        padding: 4px 12px;
+        padding: 4px 10px;
         border-radius: 999px;
         background: rgba(0, 0, 0, 0.35);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         font-weight: 600;
       }
       .nl-share-section {
-        margin-bottom: 18px;
+        margin-bottom: 16px;
       }
       .nl-share-heading {
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         color: #ffd166;
         font-weight: 700;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
       }
       .nl-share-buttons {
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 8px;
+        gap: 7px;
       }
       .nl-share-btn {
         cursor: pointer;
+        touch-action: manipulation;
         border: 1px solid rgba(255, 209, 102, 0.45);
         border-radius: 12px;
-        padding: 9px 13px;
+        padding: 8px 12px;
         font-family: inherit;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         font-weight: 700;
         color: #fff9f0;
         background: rgba(255, 255, 255, 0.1);
-        transition: transform 0.15s ease, background 0.15s ease;
-      }
-      .nl-share-btn:hover {
-        transform: translateY(-2px);
-        background: rgba(255, 209, 102, 0.25);
       }
       .nl-share-btn.share-x { background: rgba(20, 23, 26, 0.85); }
       .nl-share-btn.share-line { background: rgba(6, 199, 85, 0.28); border-color: #06c755; }
@@ -1675,94 +1856,55 @@ export class HUDAndPhotoMode {
       }
       .nl-victory-footer {
         justify-content: center;
-        gap: 14px;
+        gap: 12px;
       }
 
-      /* Mobile Responsive Adjustments */
-      @media (max-width: 820px) {
-        .nl-hud-wrapper {
-          padding: 10px 10px;
+      /* Small Mobile Viewports */
+      @media (max-width: 640px) {
+        .nl-btn-text-sm {
+          display: none;
         }
-        .nl-left-column {
-          max-width: 225px;
-          gap: 6px;
+        .nl-status-pill {
+          padding: 5px 11px 6px;
         }
-        .nl-right-column {
-          max-width: 210px;
-          gap: 6px;
+        .nl-status-metrics {
+          font-size: 0.78rem;
+          gap: 5px;
         }
-        .nl-glass-card {
-          padding: 8px 10px;
-          border-radius: 13px;
+        .nl-metric-timer strong {
+          font-size: 0.86rem;
         }
-        .nl-title {
-          font-size: 0.96rem;
+        .nl-icon-pill-btn {
+          padding: 7px 10px;
         }
-        .nl-subtitle {
-          font-size: 0.66rem;
-        }
-        .nl-move-hint,
-        .nl-desktop-only,
-        kbd {
-          display: none !important;
-        }
-        .nl-elevation-badge {
-          font-size: 0.64rem;
-          padding: 2px 6px;
-        }
-        .nl-timer-row {
-          padding: 4px 7px;
-          font-size: 0.7rem;
-          margin-bottom: 6px;
-        }
-        .nl-flower-row {
-          font-size: 0.75rem;
-        }
-        .nl-restart-btn,
-        .nl-share-hud-btn {
-          font-size: 0.66rem;
-          padding: 5px 6px;
-        }
-        .nl-pill-btn,
-        .nl-action-chip,
-        .nl-mini-btn {
-          font-size: 0.68rem;
-          padding: 5px 8px;
-        }
-        .nl-joystick-zone {
-          bottom: 14px;
-          left: 14px;
+        .nl-hamburger-btn {
+          padding: 7px 12px;
+          font-size: 0.8rem;
         }
         .nl-joystick-base {
-          width: 94px;
-          height: 94px;
+          width: 90px;
+          height: 90px;
         }
         .nl-joystick-knob {
-          width: 40px;
-          height: 40px;
+          width: 38px;
+          height: 38px;
           font-size: 1rem;
-        }
-        .nl-bottom-dock {
-          left: auto;
-          right: 12px;
-          bottom: 14px;
-          transform: none;
-          align-items: flex-end;
-          max-width: calc(100vw - 135px);
-        }
-        .nl-controls-bar {
-          padding: 6px 8px;
-          border-radius: 18px;
         }
         .nl-cat-btn {
           font-size: 0.74rem;
-          padding: 8px 11px;
+          padding: 7px 10px;
         }
+        .nl-checklist-list,
         .nl-coat-grid {
           grid-template-columns: 1fr;
         }
-        .nl-victory-time-main {
-          font-size: 1.55rem;
+        .nl-menu-stats-card {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+        .nl-menu-stat-box {
+          flex-direction: row;
+          justify-content: space-between;
         }
       }
     `;
