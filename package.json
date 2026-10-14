@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && git add . && git commit -m 'Update NekoLao' && git push origin main"
+    "deploy": "npm run build && (git add . && git commit -m 'Update NekoLao' || true) && git push origin main && npx --yes wrangler pages deploy dist --project-name neko --branch main --commit-dirty=true --force"
   },
   "dependencies": {
     "three": "^0.170.0"
