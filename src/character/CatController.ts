@@ -39,14 +39,15 @@ export class CatController {
   // Input state
   private readonly keys = new Set<string>();
   private jumpQueued = false;
+  private jumpBufferTimer = 0;
   private joystickX = 0;
   private joystickY = 0;
   private joystickSprint = false;
 
   // Movement & physics state
   private grounded = true;
-  private coyoteTimer = 0;
-  private jumpsRemaining = 1;
+  private coyoteTimer = 0.28;
+  private jumpsRemaining = 2;
   private wasInWater = false;
   private splashCooldown = 0;
   private dustSpawnTimer = 0;
@@ -131,7 +132,7 @@ export class CatController {
 
       if (code === 'Space') {
         e.preventDefault();
-        this.jumpQueued = true;
+        this.triggerJump();
       } else if ((code === 'KeyE' || code === 'KeyM') && !e.repeat) {
         this.triggerMeow();
       } else if (code === 'KeyF' && !e.repeat) {
@@ -327,6 +328,7 @@ export class CatController {
 
   public triggerJump(): void {
     this.jumpQueued = true;
+    this.jumpBufferTimer = 0.25;
   }
 
   public triggerMeow(): void {
@@ -519,7 +521,7 @@ export class CatController {
       const normX = moveDirX / moveLen;
       const normZ = moveDirZ / moveLen;
 
-      const accel = this.grounded ? 18.0 : 10.5;
+      const accel = this.grounded ? 18.0 : 14.5;
       this.velocity.x = THREE.MathUtils.lerp(
         this.velocity.x,
         normX * targetSpeed,
@@ -535,7 +537,7 @@ export class CatController {
       const desiredYaw = Math.atan2(normX, normZ);
       this.yaw = this.lerpAngle(this.yaw, desiredYaw, Math.min(1, dt * 14));
     } else {
-      const damping = this.grounded ? 14.0 : 4.0;
+      const damping = this.grounded ? 14.0 : 3.5;
       this.velocity.x = THREE.MathUtils.lerp(
         this.velocity.x,
         0,
@@ -548,29 +550,42 @@ export class CatController {
       );
     }
 
-    // --- JUMP & NIMBLE DOUBLE-HOP / LEDGE BOOST ---
+    // --- JUMP & NIMBLE DOUBLE-HOP / LEDGE BOOST (WORKS WHILE WALKING, RUNNING, OR STOPPED) ---
     if (this.grounded) {
-      this.coyoteTimer = 0.15;
-      this.jumpsRemaining = 1;
+      this.coyoteTimer = 0.28;
+      this.jumpsRemaining = 2;
     } else {
       this.coyoteTimer = Math.max(0, this.coyoteTimer - dt);
     }
+    if (this.jumpBufferTimer > 0) {
+      this.jumpBufferTimer = Math.max(0, this.jumpBufferTimer - dt);
+    }
 
-    if (this.jumpQueued) {
-      this.jumpQueued = false;
-      if (this.coyoteTimer > 0) {
-        this.velocity.y = 8.4;
+    if (this.jumpQueued || this.jumpBufferTimer > 0) {
+      if (this.grounded || this.coyoteTimer > 0) {
+        this.jumpQueued = false;
+        this.jumpBufferTimer = 0;
+        this.velocity.y = 8.6;
+        // Forward momentum boost when jumping while walking or running
+        if (hasMoveInput && moveLen > 1e-4) {
+          this.velocity.x += (moveDirX / moveLen) * 1.45;
+          this.velocity.z += (moveDirZ / moveLen) * 1.45;
+        }
         this.grounded = false;
         this.coyoteTimer = 0;
         this.jumpsRemaining = 1;
         this.spawnDustBurst(4);
-      } else if (this.jumpsRemaining > 0) {
+      } else if (this.jumpQueued && this.jumpsRemaining > 0) {
         // Nimble mid-air double-hop / ledge boost for effortless stair & fountain climbing
-        this.velocity.y = 7.5;
+        this.jumpQueued = false;
+        this.jumpBufferTimer = 0;
+        this.velocity.y = 7.6;
         this.jumpsRemaining = 0;
         this.velocity.x += Math.sin(this.yaw) * 1.65;
         this.velocity.z += Math.cos(this.yaw) * 1.65;
         this.spawnDustBurst(3);
+      } else {
+        this.jumpQueued = false;
       }
     }
 
@@ -592,7 +607,8 @@ export class CatController {
     this.position.x = res.position.x;
     this.position.z = res.position.z;
 
-    if (desiredPos.y <= res.groundY + 0.06 && this.velocity.y <= 0) {
+    const snapTolerance = this.grounded ? 0.18 : 0.08;
+    if (desiredPos.y <= res.groundY + snapTolerance && this.velocity.y <= 0) {
       // Smooth step-up / landing snap
       const wasAirborne = !this.grounded && this.velocity.y < -3.5;
       this.position.y = THREE.MathUtils.lerp(this.position.y, res.groundY, Math.min(1, dt * 28));

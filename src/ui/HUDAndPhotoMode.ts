@@ -653,13 +653,31 @@ export class HUDAndPhotoMode {
       });
     });
 
-    // Cat Action buttons
+    // Cat Action buttons (bind touchstart + pointerdown + click so jumping works while walking/running with the joystick!)
     this.root.querySelectorAll<HTMLButtonElement>('[data-action]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      let lastFireTime = 0;
+      const fireAction = (e: Event) => {
+        e.stopPropagation();
+        const now = performance.now();
+        if (now - lastFireTime < 140) return;
+        lastFireTime = now;
         const act = btn.dataset.action as 'meow' | 'swat' | 'loaf' | 'jump';
         this.onTriggerAction?.(act);
         btn.blur();
+      };
+      btn.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          fireAction(e);
+        },
+        { passive: false }
+      );
+      btn.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch') return; // Handled by touchstart
+        fireAction(e);
       });
+      btn.addEventListener('click', fireAction);
     });
 
     // Game Start Modal buttons (bind both click and pointerup for instant mobile response)
@@ -874,7 +892,8 @@ export class HUDAndPhotoMode {
     const base = this.root.querySelector('#nl-joystick-base') as HTMLElement;
     const knob = this.root.querySelector('#nl-joystick-knob') as HTMLElement;
 
-    let activePointerId: number | null = null;
+    let activeTouchId: number | null = null;
+    let activeMouseId: number | null = null;
     const maxRadius = 40;
 
     const updateStick = (clientX: number, clientY: number) => {
@@ -899,33 +918,78 @@ export class HUDAndPhotoMode {
     };
 
     const resetStick = () => {
-      activePointerId = null;
+      activeTouchId = null;
+      activeMouseId = null;
       knob.style.transform = 'translate(0px, 0px)';
       base.classList.remove('is-active');
       this.onJoystickMove?.(0, 0, false);
     };
 
+    // Multi-touch support via Touch Events (allows left thumb on joystick + right thumb tapping Jump simultaneously)
+    zone.addEventListener(
+      'touchstart',
+      (e: TouchEvent) => {
+        e.stopPropagation();
+        if (activeTouchId === null && e.changedTouches.length > 0) {
+          const t = e.changedTouches[0];
+          activeTouchId = t.identifier;
+          base.classList.add('is-active');
+          updateStick(t.clientX, t.clientY);
+        }
+      },
+      { passive: true }
+    );
+
+    window.addEventListener(
+      'touchmove',
+      (e: TouchEvent) => {
+        if (activeTouchId === null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === activeTouchId) {
+            updateStick(t.clientX, t.clientY);
+            break;
+          }
+        }
+      },
+      { passive: true }
+    );
+
+    const endTouchStick = (e: TouchEvent) => {
+      if (activeTouchId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === activeTouchId) {
+          resetStick();
+          break;
+        }
+      }
+    };
+    window.addEventListener('touchend', endTouchStick, { passive: true });
+    window.addEventListener('touchcancel', endTouchStick, { passive: true });
+
+    // Desktop mouse fallback
     zone.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return;
       e.stopPropagation();
-      activePointerId = e.pointerId;
+      activeMouseId = e.pointerId;
       zone.setPointerCapture(e.pointerId);
       base.classList.add('is-active');
       updateStick(e.clientX, e.clientY);
     });
 
     zone.addEventListener('pointermove', (e: PointerEvent) => {
-      if (e.pointerId !== activePointerId) return;
+      if (e.pointerType === 'touch' || e.pointerId !== activeMouseId) return;
       e.stopPropagation();
       updateStick(e.clientX, e.clientY);
     });
 
     zone.addEventListener('pointerup', (e: PointerEvent) => {
-      if (e.pointerId !== activePointerId) return;
+      if (e.pointerType === 'touch' || e.pointerId !== activeMouseId) return;
       resetStick();
     });
 
     zone.addEventListener('pointercancel', (e: PointerEvent) => {
-      if (e.pointerId !== activePointerId) return;
+      if (e.pointerType === 'touch' || e.pointerId !== activeMouseId) return;
       resetStick();
     });
   }
