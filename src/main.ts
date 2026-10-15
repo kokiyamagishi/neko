@@ -416,8 +416,7 @@ function bootstrap(): void {
   };
 
   hud.onChangeFov = (fov: number) => {
-    engine.camera.fov = fov;
-    engine.camera.updateProjectionMatrix();
+    engine.setBaseFov(fov);
   };
 
   hud.onCycleCatZoom = () => {

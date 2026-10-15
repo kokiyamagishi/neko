@@ -139,6 +139,15 @@ export class HUDAndPhotoMode {
             <button
               type="button"
               class="nl-icon-pill-btn"
+              id="nl-fullscreen-btn"
+              title="ເຕັມຈໍ (Fullscreen)"
+              aria-label="ເຕັມຈໍ"
+            >
+              ⛶ <span class="nl-btn-text-sm">ເຕັມຈໍ</span>
+            </button>
+            <button
+              type="button"
+              class="nl-icon-pill-btn"
               id="nl-zoom-cat-btn"
               title="ຊູມເບິ່ງແມວໃກ້/ໄກ"
               aria-label="ຊູມແມວ"
@@ -304,10 +313,10 @@ export class HUDAndPhotoMode {
               <input
                 id="nl-cat-zoom-slider"
                 type="range"
-                min="2.4"
-                max="7.2"
+                min="2.0"
+                max="6.0"
                 step="0.2"
-                value="4.6"
+                value="3.3"
               />
               <span>ມຸມກວ້າງ</span>
             </div>
@@ -539,6 +548,35 @@ export class HUDAndPhotoMode {
     }
   }
 
+  private toggleFullscreen(): void {
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element;
+      webkitExitFullscreen?: () => Promise<void>;
+    };
+    const docEl = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void>;
+    };
+
+    try {
+      if (!document.fullscreenElement && !doc.webkitFullscreenElement) {
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen().catch(() => {});
+        } else if (docEl.webkitRequestFullscreen) {
+          docEl.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        }
+      }
+    } catch {
+      // Ignore fullscreen permission errors
+    }
+    window.setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+  }
+
   private bindEvents(): void {
     // Checklist lookup
     this.root.querySelectorAll<HTMLElement>('[data-check]').forEach((el) => {
@@ -551,6 +589,12 @@ export class HUDAndPhotoMode {
     const statusPillBtn = this.root.querySelector('#nl-status-pill-btn') as HTMLButtonElement;
     const closeMenuX = this.root.querySelector('#nl-close-menu-x') as HTMLButtonElement;
     const resumeMenuBtn = this.root.querySelector('#nl-resume-menu-btn') as HTMLButtonElement;
+    const fullscreenBtn = this.root.querySelector('#nl-fullscreen-btn') as HTMLButtonElement;
+
+    fullscreenBtn.addEventListener('click', () => {
+      this.toggleFullscreen();
+      fullscreenBtn.blur();
+    });
 
     openMenuBtn.addEventListener('click', () => {
       this.openMenu();
@@ -573,11 +617,11 @@ export class HUDAndPhotoMode {
     // Quick Cat Camera Zoom Button & Slider
     const zoomCatBtn = this.root.querySelector('#nl-zoom-cat-btn') as HTMLButtonElement;
     zoomCatBtn.addEventListener('click', () => {
-      const newDist = this.onCycleCatZoom?.() ?? 4.5;
+      const newDist = this.onCycleCatZoom?.() ?? 3.3;
       this.catZoomSliderEl.value = String(newDist);
-      if (newDist <= 3.0) {
+      if (newDist <= 2.4) {
         this.showToast('🔍 ຊູມເຂົ້າໃກ້ແມວລາວ');
-      } else if (newDist >= 5.8) {
+      } else if (newDist >= 4.5) {
         this.showToast('🔍 ມຸມກ້ອງກວ້າງ');
       } else {
         this.showToast('🔍 ມຸມກ້ອງປົກກະຕິ');
@@ -623,12 +667,14 @@ export class HUDAndPhotoMode {
     startNewBtn.addEventListener('click', () => {
       this.startDialog.close();
       this.closeMenu();
+      window.dispatchEvent(new Event('resize'));
       this.onStartNewGame?.();
     });
 
     this.startContinueBtn.addEventListener('click', () => {
       this.startDialog.close();
       this.closeMenu();
+      window.dispatchEvent(new Event('resize'));
       this.onContinueGame?.();
     });
 

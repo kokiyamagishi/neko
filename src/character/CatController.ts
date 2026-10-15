@@ -63,9 +63,9 @@ export class CatController {
 
   // Orbit camera state
   public cameraYaw = -0.05;
-  public cameraPitch = -0.04;
-  public cameraDistance = 4.6;
-  private readonly cameraLookCurrent = new THREE.Vector3(2.6, 1.83, -63.4);
+  public cameraPitch = -0.06;
+  public cameraDistance = 3.3;
+  private readonly cameraLookCurrent = new THREE.Vector3(2.6, 1.38, -63.4);
   private isPointerDragging = false;
   private lastPointerX = 0;
   private lastPointerY = 0;
@@ -73,7 +73,7 @@ export class CatController {
   private lastTouchX = 0;
   private lastTouchY = 0;
   private pinchStartDist = 0;
-  private pinchStartCamDist = 4.6;
+  private pinchStartCamDist = 3.3;
 
   // Particle system (pawstep dust puffs & water splash droplets)
   private readonly particleGroup = new THREE.Group();
@@ -93,6 +93,7 @@ export class CatController {
     this.collision = collision;
 
     this.catModel = new CatModel(textures);
+    this.catModel.group.scale.setScalar(1.32);
     this.catModel.group.position.copy(this.position);
     this.catModel.group.rotation.y = this.yaw;
     this.scene.add(this.catModel.group);
@@ -109,7 +110,7 @@ export class CatController {
     );
     this.position.y = startSurf.groundY;
     this.catModel.group.position.copy(this.position);
-    this.cameraLookCurrent.set(this.position.x, this.position.y + 0.55, this.position.z);
+    this.cameraLookCurrent.set(this.position.x, this.position.y + 0.9, this.position.z);
 
     this.bindInputEvents();
     this.updateCamera(0.1);
@@ -304,18 +305,18 @@ export class CatController {
   }
 
   public cycleCameraZoom(): number {
-    if (this.cameraDistance > 5.4) {
-      this.cameraDistance = 4.5; // Normal
-    } else if (this.cameraDistance > 3.4) {
-      this.cameraDistance = 2.6; // Close up to Cat!
+    if (this.cameraDistance > 4.2) {
+      this.cameraDistance = 3.3; // Normal
+    } else if (this.cameraDistance > 2.7) {
+      this.cameraDistance = 2.1; // Close up to Cat!
     } else {
-      this.cameraDistance = 6.5; // Wide view
+      this.cameraDistance = 5.0; // Wide view
     }
     return this.cameraDistance;
   }
 
   public setCameraDistance(dist: number): void {
-    this.cameraDistance = THREE.MathUtils.clamp(dist, 2.4, 7.2);
+    this.cameraDistance = THREE.MathUtils.clamp(dist, 2.0, 6.0);
   }
 
   public setJoystickInput(x: number, y: number, sprint = false): void {
@@ -389,7 +390,7 @@ export class CatController {
     }
     this.catModel.group.position.copy(this.position);
     this.catModel.group.rotation.y = this.yaw;
-    this.cameraLookCurrent.set(this.position.x, this.position.y + 1.32, this.position.z);
+    this.cameraLookCurrent.set(this.position.x, this.position.y + 0.9, this.position.z);
     this.updateCamera(1.0);
   }
 
@@ -802,7 +803,7 @@ export class CatController {
   private updateCamera(dt: number): void {
     const targetLook = new THREE.Vector3(
       this.position.x,
-      this.position.y + 1.32,
+      this.position.y + 0.9,
       this.position.z
     );
     this.cameraLookCurrent.lerp(targetLook, Math.min(1, dt * 14));
