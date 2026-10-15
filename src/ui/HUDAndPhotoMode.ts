@@ -662,21 +662,42 @@ export class HUDAndPhotoMode {
       });
     });
 
-    // Game Start Modal buttons
+    // Game Start Modal buttons (bind both click and pointerup for instant mobile response)
     const startNewBtn = this.root.querySelector('#nl-start-new-btn') as HTMLButtonElement;
-    startNewBtn.addEventListener('click', () => {
-      this.startDialog.close();
+    let lastStartActionTime = 0;
+    const handleStartNew = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const now = performance.now();
+      if (now - lastStartActionTime < 400) return;
+      lastStartActionTime = now;
+      if (this.startDialog.open) {
+        this.startDialog.close();
+      }
+      this.startDialog.removeAttribute('open');
       this.closeMenu();
       window.dispatchEvent(new Event('resize'));
       this.onStartNewGame?.();
-    });
+    };
+    startNewBtn.addEventListener('click', handleStartNew);
+    startNewBtn.addEventListener('pointerup', handleStartNew);
 
-    this.startContinueBtn.addEventListener('click', () => {
-      this.startDialog.close();
+    const handleStartContinue = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const now = performance.now();
+      if (now - lastStartActionTime < 400) return;
+      lastStartActionTime = now;
+      if (this.startDialog.open) {
+        this.startDialog.close();
+      }
+      this.startDialog.removeAttribute('open');
       this.closeMenu();
       window.dispatchEvent(new Event('resize'));
       this.onContinueGame?.();
-    });
+    };
+    this.startContinueBtn.addEventListener('click', handleStartContinue);
+    this.startContinueBtn.addEventListener('pointerup', handleStartContinue);
 
     const openStartBtn = this.root.querySelector('#nl-open-start-btn') as HTMLButtonElement;
     openStartBtn.addEventListener('click', () => {
@@ -1334,6 +1355,7 @@ export class HUDAndPhotoMode {
       .nl-start-dialog,
       .nl-coat-dialog,
       .nl-victory-dialog {
+        pointer-events: auto;
         margin: auto;
         border: 2px solid rgba(255, 209, 102, 0.72);
         border-radius: 22px;
@@ -1356,6 +1378,7 @@ export class HUDAndPhotoMode {
         backdrop-filter: blur(5px);
       }
       .nl-dialog-form {
+        pointer-events: auto;
         padding: 18px 20px;
       }
       .nl-menu-scroll-body {
