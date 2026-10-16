@@ -1,4 +1,8 @@
 import type { TimeOfDay } from '../systems/AtmosphereAndAudio';
+import {
+  LeaderboardEntry,
+  LeaderboardService
+} from '../systems/LeaderboardService';
 
 export type CatCoatId = 'siamese' | 'ginger_tabby' | 'korat' | 'calico';
 
@@ -43,6 +47,7 @@ export function formatDigitalTime(totalSeconds: number): string {
 
 export class HUDAndPhotoMode {
   public isPhotoMode = false;
+  public readonly leaderboard = new LeaderboardService();
 
   public onSelectCoat?: (coat: CatCoatId) => void;
   public onSelectTimeOfDay?: (tod: TimeOfDay) => void;
@@ -74,6 +79,7 @@ export class HUDAndPhotoMode {
   private menuDialog: HTMLDialogElement;
   private startDialog: HTMLDialogElement;
   private startContinueBtn: HTMLButtonElement;
+  private startLeaderboardListEl: HTMLElement;
   private coatDialog: HTMLDialogElement;
   private victoryDialog: HTMLDialogElement;
   private victoryBadgeEl: HTMLElement;
@@ -82,6 +88,14 @@ export class HUDAndPhotoMode {
   private victoryTimeSubEl: HTMLElement;
   private victoryStatFlowersEl: HTMLElement;
   private victoryStatTasksEl: HTMLElement;
+  private rankRegisterBoxEl: HTMLElement;
+  private rankFormPanelEl: HTMLElement;
+  private rankStatusHeadingEl: HTMLElement;
+  private rankStatusSubEl: HTMLElement;
+  private rankNameInputEl: HTMLInputElement;
+  private rankSubmitBtnEl: HTMLButtonElement;
+  private rankRegisteredBannerEl: HTMLElement;
+  private victoryLeaderboardListEl: HTMLElement;
   private openVictoryBtn: HTMLButtonElement;
   private muteBtn: HTMLButtonElement;
   private checklistProgressEl: HTMLElement;
@@ -101,6 +115,11 @@ export class HUDAndPhotoMode {
   private lastFlowers = 0;
   private lastTotalFlowers = 30;
   private lastDoneTasks = 0;
+  private lastCoat = 'siamese';
+  private hasRegisteredCurrentRun = false;
+  private registeredEntryId: string | null = null;
+  private registeredRank: number | null = null;
+  private registeredPlayerName: string | null = null;
 
   constructor(rootElement: HTMLElement) {
     this.root = rootElement;
@@ -363,9 +382,9 @@ export class HUDAndPhotoMode {
         </div>
       </dialog>
 
-      <!-- Center-Screen Game Start Modal -->
+      <!-- Center-Screen Game Start Modal (with Pre-Game Top 10 Ranking) -->
       <dialog id="start-dialog" class="nl-start-dialog" aria-labelledby="startDialogTitle">
-        <div class="nl-dialog-form nl-victory-content">
+        <div class="nl-dialog-form nl-victory-content nl-modal-scroll">
           <div class="nl-school-banner">🌼 Issarapon School • ໂຮງຮຽນ ອິດສະຫຼະພອນ 🌼</div>
           <h2 id="startDialogTitle" class="nl-start-title">
             🐾 ແມວລາວ NekoLao
@@ -374,12 +393,6 @@ export class HUDAndPhotoMode {
             ສຳຫຼວດສວນປະຕູໄຊ ນະຄອນຫຼວງວຽງຈັນ • ເກັບດອກຈຳປາ & ແຂ່ງຈັບເວລາ!
           </p>
 
-          <div class="nl-start-rules-box">
-            <div class="nl-rule-item">🌼 <span>ເກັບ <strong>ດອກຈຳປາ 30 ດອກ</strong> ທົ່ວສວນປະຕູໄຊ ແລະ ດາດຟ້າ</span></div>
-            <div class="nl-rule-item">🐾 <span>ເຮັດ <strong>ພາລະກິດແມວນ້ອຍ 6 ຂໍ້</strong> ໃຫ້ຄົບຖ້ວນ</span></div>
-            <div class="nl-rule-item">⏱️ <span>ວັດເວລາຕັ້ງແຕ່ເລີ່ມເກມ ຈົນຜ່ານຄົບທຸກຂໍ້ ແລ້ວແຊຣ໌ສະຖິຕິລົງ SNS!</span></div>
-          </div>
-
           <div class="nl-start-actions">
             <button type="button" class="nl-big-start-btn" id="nl-start-new-btn">
               ▶️ ເລີ່ມເກມ (START GAME)
@@ -387,6 +400,21 @@ export class HUDAndPhotoMode {
             <button type="button" class="nl-continue-btn is-hidden" id="nl-start-continue-btn">
               ⏩ ຫຼິ້ນຕໍ່ຈາກເດີມ
             </button>
+          </div>
+
+          <div class="nl-start-rules-box">
+            <div class="nl-rule-item">🌼 <span>ເກັບ <strong>ດອກຈຳປາ 30 ດອກ</strong> ທົ່ວສວນປະຕູໄຊ ແລະ ດາດຟ້າ</span></div>
+            <div class="nl-rule-item">🐾 <span>ເຮັດ <strong>ພາລະກິດແມວນ້ອຍ 6 ຂໍ້</strong> ໃຫ້ຄົບຖ້ວນ</span></div>
+            <div class="nl-rule-item">🏆 <span>ແຂ່ງຈັບເວລາ <strong>ຕິດອັນດັບ TOP 10</strong> ແລ້ວລົງທະບຽນຊື່ຂອງເຈົ້າ!</span></div>
+          </div>
+
+          <!-- Pre-Game Top 10 Leaderboard -->
+          <div class="nl-leaderboard-card">
+            <div class="nl-leaderboard-header">
+              <span>🏆 ຕາຕະລາງຈັດອັນດັບ TOP 10 (RANKING)</span>
+              <span class="nl-leaderboard-sub">ເວລາໄວສຸດ</span>
+            </div>
+            <ol class="nl-leaderboard-list" id="nl-start-leaderboard-list"></ol>
           </div>
         </div>
       </dialog>
@@ -432,16 +460,16 @@ export class HUDAndPhotoMode {
         </form>
       </dialog>
 
-      <!-- Center-Screen Victory / Clear Time & SNS Share Modal (with closedby="any") -->
+      <!-- Center-Screen Victory / Ranking Registration, Top 10 & SNS Share Modal (with closedby="any") -->
       <dialog id="victory-dialog" class="nl-victory-dialog" closedby="any" aria-labelledby="victoryDialogTitle">
-        <div class="nl-dialog-form nl-victory-content">
+        <div class="nl-dialog-form nl-victory-content nl-modal-scroll">
           <div class="nl-school-banner">🌼 Issarapon School • ສວນປະຕູໄຊ 🌼</div>
           <div class="nl-victory-badge" id="nl-victory-badge">🏆 ພາລະກິດສຳເລັດຄົບທຸກຂໍ້! 🏆</div>
           <h2 id="victoryDialogTitle" class="nl-victory-title">
             ຊົມເຊີຍ! ສຳຫຼວດສວນປະຕູໄຊສຳເລັດແລ້ວ!
           </h2>
           <p class="nl-victory-subtitle">
-            ບັນທຶກເວລາຂອງເຈົ້າ ແລະ ແຊຣ໌ໃຫ້ໝູ່ເພື່ອນໃນ SNS ໄດ້ເລີຍ!
+            ລົງທະບຽນຊື່ເຂົ້າອັນດັບ TOP 10 ແລະ ແຊຣ໌ໃຫ້ໝູ່ເພື່ອນໃນ SNS ໄດ້ເລີຍ!
           </p>
 
           <div class="nl-victory-time-box">
@@ -452,6 +480,39 @@ export class HUDAndPhotoMode {
               <span class="nl-stat-pill" id="nl-victory-stat-flowers">🌼 ດອກຈຳປາ 30 / 30</span>
               <span class="nl-stat-pill" id="nl-victory-stat-tasks">✅ ພາລະກິດ 6 / 6</span>
             </div>
+          </div>
+
+          <!-- Top 10 Ranking Registration Box -->
+          <div class="nl-rank-register-box" id="nl-rank-register-box">
+            <div class="nl-rank-status-heading" id="nl-rank-status-heading">
+              🎉 ຍິນດີດ້ວຍ! ເຈົ້າຕິດອັນດັບທີ #1 ໃນ TOP 10!
+            </div>
+            <p class="nl-rank-status-sub" id="nl-rank-status-sub">
+              ໃສ່ຊື່ຂອງເຈົ້າເພື່ອລົງທະບຽນເຂົ້າຕາຕະລາງຈັດອັນດັບ TOP 10:
+            </p>
+            <div class="nl-rank-form-panel" id="nl-rank-form-panel">
+              <input
+                type="text"
+                id="nl-rank-name-input"
+                class="nl-rank-name-input"
+                maxlength="20"
+                placeholder="ໃສ່ຊື່ຂອງເຈົ້າ (Your Name)..."
+                autocomplete="nickname"
+              />
+              <button type="button" class="nl-rank-submit-btn" id="nl-rank-submit-btn">
+                🏆 ລົງທະບຽນອັນດັບ (REGISTER RANK)
+              </button>
+            </div>
+            <div class="nl-rank-registered-banner is-hidden" id="nl-rank-registered-banner"></div>
+          </div>
+
+          <!-- Post-Game Top 10 Leaderboard -->
+          <div class="nl-leaderboard-card">
+            <div class="nl-leaderboard-header">
+              <span>🏆 ຕາຕະລາງຈັດອັນດັບ TOP 10 (RANKING)</span>
+              <span class="nl-leaderboard-sub">Issarapon School</span>
+            </div>
+            <ol class="nl-leaderboard-list" id="nl-victory-leaderboard-list"></ol>
           </div>
 
           <div class="nl-share-section">
@@ -504,6 +565,7 @@ export class HUDAndPhotoMode {
     this.menuDialog = this.root.querySelector('#menu-dialog') as HTMLDialogElement;
     this.startDialog = this.root.querySelector('#start-dialog') as HTMLDialogElement;
     this.startContinueBtn = this.root.querySelector('#nl-start-continue-btn') as HTMLButtonElement;
+    this.startLeaderboardListEl = this.root.querySelector('#nl-start-leaderboard-list') as HTMLElement;
     this.coatDialog = this.root.querySelector('#coat-dialog') as HTMLDialogElement;
     this.victoryDialog = this.root.querySelector('#victory-dialog') as HTMLDialogElement;
     this.victoryBadgeEl = this.root.querySelector('#nl-victory-badge')!;
@@ -512,6 +574,14 @@ export class HUDAndPhotoMode {
     this.victoryTimeSubEl = this.root.querySelector('#nl-victory-time-sub')!;
     this.victoryStatFlowersEl = this.root.querySelector('#nl-victory-stat-flowers')!;
     this.victoryStatTasksEl = this.root.querySelector('#nl-victory-stat-tasks')!;
+    this.rankRegisterBoxEl = this.root.querySelector('#nl-rank-register-box') as HTMLElement;
+    this.rankFormPanelEl = this.root.querySelector('#nl-rank-form-panel') as HTMLElement;
+    this.rankStatusHeadingEl = this.root.querySelector('#nl-rank-status-heading') as HTMLElement;
+    this.rankStatusSubEl = this.root.querySelector('#nl-rank-status-sub') as HTMLElement;
+    this.rankNameInputEl = this.root.querySelector('#nl-rank-name-input') as HTMLInputElement;
+    this.rankSubmitBtnEl = this.root.querySelector('#nl-rank-submit-btn') as HTMLButtonElement;
+    this.rankRegisteredBannerEl = this.root.querySelector('#nl-rank-registered-banner') as HTMLElement;
+    this.victoryLeaderboardListEl = this.root.querySelector('#nl-victory-leaderboard-list') as HTMLElement;
     this.openVictoryBtn = this.root.querySelector('#nl-open-victory-btn') as HTMLButtonElement;
     this.muteBtn = this.root.querySelector('#nl-mute-btn') as HTMLButtonElement;
     this.checklistProgressEl = this.root.querySelector('#nl-checklist-progress')!;
@@ -520,6 +590,10 @@ export class HUDAndPhotoMode {
 
     this.bindEvents();
     this.bindVirtualJoystick();
+    this.renderLeaderboardLists();
+    void this.leaderboard.fetchTop10().then(() => {
+      this.renderLeaderboardLists();
+    });
   }
 
   /**
@@ -789,6 +863,23 @@ export class HUDAndPhotoMode {
       this.onResetRun?.();
     });
 
+    // Top 10 Ranking Registration Input & Button
+    const stopKeyPropagation = (e: KeyboardEvent) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void this.handleRegisterRank();
+      }
+    };
+    this.rankNameInputEl.addEventListener('keydown', stopKeyPropagation);
+    this.rankNameInputEl.addEventListener('keyup', (e: KeyboardEvent) => e.stopPropagation());
+
+    this.rankSubmitBtnEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void this.handleRegisterRank();
+    });
+
     const shareXBtn = this.root.querySelector('#nl-share-x-btn') as HTMLButtonElement;
     shareXBtn.addEventListener('click', () => {
       const text = this.buildShareMessage();
@@ -994,36 +1085,205 @@ export class HUDAndPhotoMode {
     });
   }
 
+  private getCoatEmoji(coat?: string): string {
+    switch (coat) {
+      case 'ginger_tabby':
+        return '🧡';
+      case 'korat':
+        return '💙';
+      case 'calico':
+        return '🎨';
+      default:
+        return '🐾';
+    }
+  }
+
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  private renderLeaderboardLists( entriesOverride?: LeaderboardEntry[]): void {
+    const entries = entriesOverride ?? this.leaderboard.getEntries();
+    const renderInto = (listEl: HTMLElement) => {
+      listEl.innerHTML = entries
+        .slice(0, 10)
+        .map((item, idx) => {
+          const rank = idx + 1;
+          const medal =
+            rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+          const isSelf = this.registeredEntryId !== null && item.id === this.registeredEntryId;
+          const selfBadge = isSelf ? '<span class="nl-rank-you-badge">ເຈົ້າ (YOU)</span>' : '';
+          return `
+            <li class="nl-leaderboard-item ${rank <= 3 ? `is-top-${rank}` : ''} ${
+            isSelf ? 'is-self' : ''
+          }">
+              <span class="nl-rank-pos">${medal}</span>
+              <span class="nl-rank-player">
+                <span class="nl-rank-coat">${this.getCoatEmoji(item.coat)}</span>
+                <span class="nl-rank-name">${this.escapeHtml(item.name)}</span>
+                ${selfBadge}
+              </span>
+              <span class="nl-rank-time">${formatDigitalTime(item.timeSeconds)}</span>
+            </li>
+          `;
+        })
+        .join('');
+    };
+
+    renderInto(this.startLeaderboardListEl);
+    renderInto(this.victoryLeaderboardListEl);
+  }
+
+  public resetRunRegistration(): void {
+    this.hasRegisteredCurrentRun = false;
+    this.registeredEntryId = null;
+    this.registeredRank = null;
+  }
+
+  private async handleRegisterRank(): Promise<void> {
+    if (this.hasRegisteredCurrentRun) return;
+    const rawName = this.rankNameInputEl.value.trim();
+    const playerName = rawName.length > 0 ? rawName : 'ແມວລາວ NekoLao';
+
+    try {
+      localStorage.setItem('nekolao_last_player_name', playerName);
+    } catch {
+      // Ignore storage error
+    }
+
+    this.rankSubmitBtnEl.disabled = true;
+    this.rankSubmitBtnEl.textContent = '⏳ ກຳລັງບັນທຶກ...';
+
+    try {
+      const result = await this.leaderboard.submitScore(
+        playerName,
+        this.lastClearSeconds,
+        this.lastCoat
+      );
+      this.hasRegisteredCurrentRun = true;
+      this.registeredEntryId = result.entry.id;
+      this.registeredRank = result.rank;
+      this.registeredPlayerName = result.entry.name;
+
+      this.renderLeaderboardLists(result.entries);
+      this.updateVictoryRankingUI(this.lastClearSeconds, true);
+      this.showToast(
+        result.rank
+          ? `🏆 ລົງທະບຽນອັນດັບທີ #${result.rank} (${result.entry.name}) ສຳເລັດແລ້ວ!`
+          : `🏆 ບັນທຶກສະຖິຕິຂອງ ${result.entry.name} ສຳເລັດແລ້ວ!`
+      );
+    } finally {
+      this.rankSubmitBtnEl.disabled = false;
+    }
+  }
+
+  private updateVictoryRankingUI(clearSeconds: number, isGameCleared: boolean): void {
+    if (!isGameCleared) {
+      this.rankRegisterBoxEl.classList.remove('is-top10');
+      this.rankFormPanelEl.classList.add('is-hidden');
+      this.rankRegisteredBannerEl.classList.add('is-hidden');
+      this.rankStatusHeadingEl.textContent = '🏆 ແຂ່ງຈັບເວລາຊິງອັນດັບ TOP 10';
+      this.rankStatusSubEl.textContent =
+        'ເກັບດອກຈຳປາຄົບ 30 ດອກ ແລະ ພາລະກິດຄົບ 6 ຂໍ້ ເພື່ອລົງທະບຽນຊື່ເຂົ້າຕາຕະລາງຈັດອັນດັບ!';
+      return;
+    }
+
+    if (this.hasRegisteredCurrentRun) {
+      this.rankRegisterBoxEl.classList.add('is-top10');
+      this.rankFormPanelEl.classList.add('is-hidden');
+      this.rankRegisteredBannerEl.classList.remove('is-hidden');
+      const rankLabel = this.registeredRank ? `ອັນດັບທີ #${this.registeredRank}` : 'ບັນທຶກແລ້ວ';
+      this.rankStatusHeadingEl.textContent = `🎉 ລົງທະບຽນເຂົ້າ TOP 10 ສຳເລັດແລ້ວ!`;
+      this.rankStatusSubEl.textContent = `ຊື່ຂອງເຈົ້າປາກົດຢູ່ໃນຕາຕະລາງອັນດັບ TOP 10 ດ້ານລຸ່ມແລ້ວ`;
+      this.rankRegisteredBannerEl.textContent = `✅ ${rankLabel} • ${this.registeredPlayerName} (${formatDigitalTime(
+        clearSeconds
+      )})`;
+      return;
+    }
+
+    const provisionalRank = this.leaderboard.computeProvisionalRank(clearSeconds);
+    if (provisionalRank !== null) {
+      this.rankRegisterBoxEl.classList.add('is-top10');
+      this.rankFormPanelEl.classList.remove('is-hidden');
+      this.rankRegisteredBannerEl.classList.add('is-hidden');
+      this.rankStatusHeadingEl.textContent = `🎉 ຕິດອັນດັບ TOP 10! ປັດຈຸບັນເຈົ້າຢູ່ອັນດັບທີ #${provisionalRank}!`;
+      this.rankStatusSubEl.textContent = `ໃສ່ຊື່ຂອງເຈົ້າເພື່ອລົງທະບຽນສະຖິຕິອັນດັບທີ #${provisionalRank} (${formatDigitalTime(
+        clearSeconds
+      )}):`;
+      this.rankSubmitBtnEl.textContent = `🏆 ລົງທະບຽນອັນດັບທີ #${provisionalRank} (REGISTER)`;
+
+      if (!this.rankNameInputEl.value) {
+        try {
+          const savedName = localStorage.getItem('nekolao_last_player_name');
+          if (savedName) this.rankNameInputEl.value = savedName;
+        } catch {
+          // Ignore storage error
+        }
+      }
+    } else {
+      const entries = this.leaderboard.getEntries();
+      const tenthTime = entries.length >= 10 ? formatDigitalTime(entries[9].timeSeconds) : '09:00.0';
+      this.rankRegisterBoxEl.classList.remove('is-top10');
+      this.rankFormPanelEl.classList.add('is-hidden');
+      this.rankRegisteredBannerEl.classList.add('is-hidden');
+      this.rankStatusHeadingEl.textContent = `⏱️ ເວລາຂອງເຈົ້າ: ${formatDigitalTime(clearSeconds)}`;
+      this.rankStatusSubEl.textContent = `ສະຖິຕິອັນດັບທີ #10 ປັດຈຸບັນແມ່ນ ${tenthTime} — ລອງຫຼິ້ນອີກຄັ້ງເພື່ອຕິດ TOP 10!`;
+    }
+  }
+
   private buildShareMessage(): string {
     const laoTime = formatLaoMinutesSeconds(this.lastClearSeconds);
     const digital = formatDigitalTime(this.lastClearSeconds);
-    return `🐾 ຂ້ອຍຫຼິ້ນເກມ "ແມວລາວ NekoLao (Issarapon School)" ຢູ່ສວນປະຕູໄຊ ວຽງຈັນ ເກັບດອກຈຳປາ ${this.lastFlowers}/${this.lastTotalFlowers} ດອກ ແລະ ພາລະກິດ ${this.lastDoneTasks}/6 ດ້ວຍເວລາ ${laoTime} (${digital})! 🌼✨ #IssaraponSchool #NekoLao #PatuxayPark #Laos`;
+    const rankPrefix =
+      this.hasRegisteredCurrentRun && this.registeredRank
+        ? `🏆 ຕິດອັນດັບທີ #${this.registeredRank} (${this.registeredPlayerName})! `
+        : '';
+    return `🐾 ${rankPrefix}ຂ້ອຍຫຼິ້ນເກມ "ແມວລາວ NekoLao (Issarapon School)" ຢູ່ສວນປະຕູໄຊ ວຽງຈັນ ເກັບດອກຈຳປາ ${this.lastFlowers}/${this.lastTotalFlowers} ດອກ ແລະ ພາລະກິດ ${this.lastDoneTasks}/6 ດ້ວຍເວລາ ${laoTime} (${digital})! 🌼✨ #IssaraponSchool #NekoLao #PatuxayPark #Laos`;
   }
 
   public showStartModal(hasSavedProgress: boolean): void {
     this.startContinueBtn.classList.toggle('is-hidden', !hasSavedProgress);
+    this.renderLeaderboardLists();
+    void this.leaderboard.fetchTop10().then(() => {
+      this.renderLeaderboardLists();
+    });
     if (!this.startDialog.open) {
       this.startDialog.showModal();
     }
   }
 
-  public showVictoryModal(clearSeconds: number, isFullClear = true): void {
+  public showVictoryModal(clearSeconds: number, isFullClear = false): void {
     this.lastClearSeconds = clearSeconds;
     this.victoryTimeMainEl.textContent = formatLaoMinutesSeconds(clearSeconds);
     this.victoryTimeSubEl.textContent = `(${formatDigitalTime(clearSeconds)})`;
     this.victoryStatFlowersEl.textContent = `🌼 ດອກຈຳປາ ${this.lastFlowers} / ${this.lastTotalFlowers}`;
     this.victoryStatTasksEl.textContent = `✅ ພາລະກິດ ${this.lastDoneTasks} / 6`;
 
-    if (isFullClear || (this.lastFlowers >= this.lastTotalFlowers && this.lastDoneTasks >= 6)) {
+    const isGameCleared =
+      isFullClear || (this.lastFlowers >= this.lastTotalFlowers && this.lastDoneTasks >= 6);
+
+    if (isGameCleared) {
       this.victoryBadgeEl.textContent = '🏆 ພາລະກິດສຳເລັດຄົບທຸກຂໍ້! 🏆';
       this.victoryTitleEl.textContent = 'ຊົມເຊີຍ! ສຳຫຼວດສວນປະຕູໄຊສຳເລັດແລ້ວ!';
     } else if (this.lastFlowers >= this.lastTotalFlowers) {
       this.victoryBadgeEl.textContent = '🌼 ເກັບດອກຈຳປາຄົບ 30 ດອກແລ້ວ! 🌼';
       this.victoryTitleEl.textContent = 'ຊົມເຊີຍ! ເກັບດອກຈຳປາຄົບທຸກດອກແລ້ວ!';
     } else {
-      this.victoryBadgeEl.textContent = '⏱️ ສະຖິຕິເວລາປັດຈຸບັນ & ແຊຣ໌ SNS';
+      this.victoryBadgeEl.textContent = '🏆 ຕາຕະລາງຈັດອັນດັບ TOP 10 & ແຊຣ໌ SNS';
       this.victoryTitleEl.textContent = 'ແມວລາວ NekoLao • Issarapon School';
     }
+
+    this.renderLeaderboardLists();
+    this.updateVictoryRankingUI(clearSeconds, isGameCleared);
+
+    void this.leaderboard.fetchTop10().then(() => {
+      this.renderLeaderboardLists();
+      this.updateVictoryRankingUI(clearSeconds, isGameCleared);
+    });
 
     if (!this.victoryDialog.open) {
       this.victoryDialog.showModal();
@@ -1067,6 +1327,7 @@ export class HUDAndPhotoMode {
     // 1. Update Flower Counter (compact top pill + menu detail)
     this.lastFlowers = data.flowers;
     this.lastTotalFlowers = data.totalFlowers;
+    this.lastCoat = data.currentCoat;
     this.flowerCountEl.textContent = `${data.flowers}/${data.totalFlowers}`;
     this.menuFlowerCountEl.textContent = `${data.flowers} / ${data.totalFlowers}`;
     const pct = Math.min(100, Math.round((data.flowers / Math.max(1, data.totalFlowers)) * 100));
@@ -1754,22 +2015,27 @@ export class HUDAndPhotoMode {
         color: #ffd166;
         margin-bottom: 6px;
       }
+      .nl-modal-scroll {
+        max-height: 85vh;
+        overflow-y: auto;
+        touch-action: pan-y;
+      }
       .nl-start-rules-box {
         text-align: left;
         background: rgba(255, 248, 235, 0.06);
         border: 1px solid rgba(255, 209, 102, 0.32);
-        border-radius: 16px;
-        padding: 13px 15px;
-        margin-bottom: 16px;
+        border-radius: 14px;
+        padding: 10px 13px;
+        margin-bottom: 12px;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
       }
       .nl-rule-item {
         display: flex;
         align-items: center;
         gap: 8px;
-        font-size: 0.82rem;
+        font-size: 0.78rem;
         color: #f3e8d8;
       }
       .nl-rule-item strong {
@@ -1778,7 +2044,8 @@ export class HUDAndPhotoMode {
       .nl-start-actions {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
+        margin-bottom: 12px;
       }
       .nl-big-start-btn {
         cursor: pointer;
@@ -1806,6 +2073,186 @@ export class HUDAndPhotoMode {
         font-family: inherit;
         font-size: 0.86rem;
         font-weight: 700;
+      }
+
+      /* Top 10 Leaderboard Card & List */
+      .nl-leaderboard-card {
+        text-align: left;
+        background: rgba(14, 10, 8, 0.72);
+        border: 1.5px solid rgba(255, 209, 102, 0.42);
+        border-radius: 16px;
+        padding: 11px 13px;
+        margin-bottom: 14px;
+      }
+      .nl-leaderboard-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.82rem;
+        font-weight: 800;
+        color: #ffd166;
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(255, 209, 102, 0.22);
+      }
+      .nl-leaderboard-sub {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #9bf6ee;
+      }
+      .nl-leaderboard-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 220px;
+        overflow-y: auto;
+        touch-action: pan-y;
+        padding-right: 2px;
+      }
+      .nl-leaderboard-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: rgba(255, 248, 235, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        font-size: 0.78rem;
+        color: #f3e8d8;
+      }
+      .nl-leaderboard-item.is-top-1 {
+        background: linear-gradient(90deg, rgba(255, 209, 102, 0.22), rgba(255, 159, 28, 0.1));
+        border-color: rgba(255, 209, 102, 0.65);
+      }
+      .nl-leaderboard-item.is-top-2 {
+        background: rgba(226, 232, 240, 0.12);
+        border-color: rgba(226, 232, 240, 0.42);
+      }
+      .nl-leaderboard-item.is-top-3 {
+        background: rgba(235, 152, 78, 0.14);
+        border-color: rgba(235, 152, 78, 0.45);
+      }
+      .nl-leaderboard-item.is-self {
+        background: linear-gradient(90deg, rgba(46, 196, 182, 0.28), rgba(255, 209, 102, 0.22));
+        border: 1.5px solid #2ec4b6;
+        box-shadow: 0 0 14px rgba(46, 196, 182, 0.35);
+      }
+      .nl-rank-pos {
+        width: 30px;
+        font-weight: 800;
+        color: #ffd166;
+        flex-shrink: 0;
+        text-align: center;
+      }
+      .nl-rank-player {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .nl-rank-coat {
+        flex-shrink: 0;
+      }
+      .nl-rank-name {
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .nl-rank-you-badge {
+        flex-shrink: 0;
+        font-size: 0.65rem;
+        font-weight: 800;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: #2ec4b6;
+        color: #0e1716;
+      }
+      .nl-rank-time {
+        font-family: 'Fredoka', monospace;
+        font-weight: 700;
+        color: #9bf6ee;
+        flex-shrink: 0;
+      }
+
+      /* Ranking Registration Box inside Victory Modal */
+      .nl-rank-register-box {
+        background: rgba(255, 248, 235, 0.06);
+        border: 1.5px solid rgba(255, 209, 102, 0.38);
+        border-radius: 16px;
+        padding: 12px 14px;
+        margin-bottom: 14px;
+        text-align: center;
+      }
+      .nl-rank-register-box.is-top10 {
+        background: linear-gradient(135deg, rgba(255, 209, 102, 0.2), rgba(46, 196, 182, 0.16));
+        border: 2px solid #ffd166;
+        box-shadow: 0 8px 24px rgba(255, 159, 28, 0.22);
+      }
+      .nl-rank-status-heading {
+        font-size: 0.94rem;
+        font-weight: 800;
+        color: #ffd166;
+        margin-bottom: 4px;
+      }
+      .nl-rank-status-sub {
+        font-size: 0.76rem;
+        color: #e9dccb;
+        margin-bottom: 10px;
+      }
+      .nl-rank-form-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .nl-rank-name-input {
+        width: 100%;
+        padding: 10px 13px;
+        border-radius: 12px;
+        border: 1.5px solid rgba(255, 209, 102, 0.75);
+        background: rgba(12, 9, 6, 0.88);
+        color: #fff9f0;
+        font-family: inherit;
+        font-size: 0.92rem;
+        font-weight: 700;
+        text-align: center;
+        outline: none;
+      }
+      .nl-rank-name-input:focus {
+        border-color: #2ec4b6;
+        box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.28);
+      }
+      .nl-rank-submit-btn {
+        cursor: pointer;
+        touch-action: manipulation;
+        width: 100%;
+        padding: 11px 16px;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(135deg, #2ec4b6, #1f9d90);
+        color: #0d1716;
+        font-family: inherit;
+        font-size: 0.9rem;
+        font-weight: 800;
+        box-shadow: 0 6px 18px rgba(46, 196, 182, 0.35);
+      }
+      .nl-rank-submit-btn:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+      .nl-rank-registered-banner {
+        margin-top: 6px;
+        padding: 9px 12px;
+        border-radius: 12px;
+        background: rgba(46, 196, 182, 0.22);
+        border: 1.5px solid #2ec4b6;
+        color: #9bf6ee;
+        font-size: 0.84rem;
+        font-weight: 800;
       }
 
       .nl-dialog-header {
@@ -1911,14 +2358,14 @@ export class HUDAndPhotoMode {
       .nl-victory-subtitle {
         font-size: 0.82rem;
         color: #dfd0bc;
-        margin-bottom: 14px;
+        margin-bottom: 12px;
       }
       .nl-victory-time-box {
         background: linear-gradient(135deg, rgba(255, 209, 102, 0.16), rgba(46, 196, 182, 0.14));
         border: 2px solid #ffd166;
         border-radius: 18px;
-        padding: 14px 16px;
-        margin-bottom: 16px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
       }
       .nl-victory-time-label {
         font-size: 0.78rem;
@@ -1926,7 +2373,7 @@ export class HUDAndPhotoMode {
         font-weight: 600;
       }
       .nl-victory-time-main {
-        font-size: 1.85rem;
+        font-size: 1.7rem;
         font-weight: 800;
         color: #fff9f0;
         margin: 4px 0 2px;

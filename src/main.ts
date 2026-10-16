@@ -204,6 +204,7 @@ function bootstrap(): void {
     clearTimeSeconds = null;
     hasShownVictoryModal = false;
     isGameStarted = true;
+    hud.resetRunRegistration();
     catController.teleportTo(new THREE.Vector3(2.6, 0.48, -63.4), -0.05, -0.04);
     atmosphere.playCollectSound();
     saveProgress();
@@ -465,20 +466,6 @@ function bootstrap(): void {
     const isNight = atmosphere.currentTimeOfDay === 'night';
     const paused = hud.isPaused;
 
-    // Advance timer once game is started and NOT paused until all tasks are cleared
-    const clearedNow = isAllCleared();
-    if (isGameStarted && !paused && !clearedNow && clearTimeSeconds === null) {
-      elapsedRunSeconds += delta;
-    } else if (isGameStarted && clearedNow && clearTimeSeconds === null) {
-      clearTimeSeconds = Math.max(0.1, elapsedRunSeconds);
-      saveProgress();
-      if (!hasShownVictoryModal) {
-        hasShownVictoryModal = true;
-        atmosphere.playCollectSound();
-        hud.showVictoryModal(clearTimeSeconds, true);
-      }
-    }
-
     catController.update(delta, elapsed, hud.isPhotoMode, paused);
     monument.update(delta, elapsed);
     waterSystem.update(delta, elapsed, catController.position, isNight);
@@ -497,6 +484,20 @@ function bootstrap(): void {
       catController.position,
       catController.isLoafing
     );
+
+    // Advance timer once game is started and NOT paused until all tasks are cleared
+    const clearedNow = isAllCleared();
+    let justClearedThisFrame = false;
+    if (isGameStarted && !paused && !clearedNow && clearTimeSeconds === null) {
+      elapsedRunSeconds += delta;
+    } else if (isGameStarted && clearedNow && clearTimeSeconds === null) {
+      clearTimeSeconds = Math.max(0.1, elapsedRunSeconds);
+      saveProgress();
+      if (!hasShownVictoryModal) {
+        hasShownVictoryModal = true;
+        justClearedThisFrame = true;
+      }
+    }
 
     // Milestone toast notifications in Lao
     if (catController.hasWalkedUnderArch && !announcedArch) {
@@ -536,6 +537,11 @@ function bootstrap(): void {
       isCleared: clearTimeSeconds !== null,
       clearTimeSeconds
     });
+
+    if (justClearedThisFrame && clearTimeSeconds !== null) {
+      atmosphere.playCollectSound();
+      hud.showVictoryModal(clearTimeSeconds, true);
+    }
   });
 
   engine.start();
