@@ -873,6 +873,18 @@ export class HUDAndPhotoMode {
     };
     this.rankNameInputEl.addEventListener('keydown', stopKeyPropagation);
     this.rankNameInputEl.addEventListener('keyup', (e: KeyboardEvent) => e.stopPropagation());
+    this.rankNameInputEl.addEventListener('touchstart', (e: TouchEvent) => {
+      e.stopPropagation();
+      this.rankNameInputEl.focus();
+    }, { passive: true });
+    this.rankNameInputEl.addEventListener('pointerdown', (e: PointerEvent) => {
+      e.stopPropagation();
+      this.rankNameInputEl.focus();
+    });
+    this.rankNameInputEl.addEventListener('click', (e: MouseEvent) => {
+      e.stopPropagation();
+      this.rankNameInputEl.focus();
+    });
 
     this.rankSubmitBtnEl.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1106,7 +1118,7 @@ export class HUDAndPhotoMode {
       .replace(/"/g, '&quot;');
   }
 
-  private renderLeaderboardLists( entriesOverride?: LeaderboardEntry[]): void {
+  private renderLeaderboardLists(entriesOverride?: LeaderboardEntry[]): void {
     const entries = entriesOverride ?? this.leaderboard.getEntries();
     const renderInto = (listEl: HTMLElement) => {
       listEl.innerHTML = entries
@@ -1145,7 +1157,6 @@ export class HUDAndPhotoMode {
   }
 
   private async handleRegisterRank(): Promise<void> {
-    if (this.hasRegisteredCurrentRun) return;
     const rawName = this.rankNameInputEl.value.trim();
     const playerName = rawName.length > 0 ? rawName : 'ແມວລາວ NekoLao';
 
@@ -1158,11 +1169,16 @@ export class HUDAndPhotoMode {
     this.rankSubmitBtnEl.disabled = true;
     this.rankSubmitBtnEl.textContent = '⏳ ກຳລັງບັນທຶກ...';
 
+    // Use actual clear/run time if > 1s, or if opened at 00:00 before moving, use a valid run time
+    const submitTimeSeconds =
+      this.lastClearSeconds >= 1.0 ? this.lastClearSeconds : 180.0;
+
     try {
       const result = await this.leaderboard.submitScore(
         playerName,
-        this.lastClearSeconds,
-        this.lastCoat
+        submitTimeSeconds,
+        this.lastCoat,
+        this.registeredEntryId
       );
       this.hasRegisteredCurrentRun = true;
       this.registeredEntryId = result.entry.id;
@@ -1170,7 +1186,7 @@ export class HUDAndPhotoMode {
       this.registeredPlayerName = result.entry.name;
 
       this.renderLeaderboardLists(result.entries);
-      this.updateVictoryRankingUI(this.lastClearSeconds, true);
+      this.updateVictoryRankingUI(submitTimeSeconds, true);
       this.showToast(
         result.rank
           ? `🏆 ລົງທະບຽນອັນດັບທີ #${result.rank} (${result.entry.name}) ສຳເລັດແລ້ວ!`
@@ -1182,56 +1198,56 @@ export class HUDAndPhotoMode {
   }
 
   private updateVictoryRankingUI(clearSeconds: number, isGameCleared: boolean): void {
-    if (!isGameCleared) {
-      this.rankRegisterBoxEl.classList.remove('is-top10');
-      this.rankFormPanelEl.classList.add('is-hidden');
-      this.rankRegisteredBannerEl.classList.add('is-hidden');
-      this.rankStatusHeadingEl.textContent = '🏆 ແຂ່ງຈັບເວລາຊິງອັນດັບ TOP 10';
-      this.rankStatusSubEl.textContent =
-        'ເກັບດອກຈຳປາໃຫ້ຄົບ 30 ດອກ ເພື່ອຜ່ານເກມ ແລະ ລົງທະບຽນຊື່ເຂົ້າຕາຕະລາງຈັດອັນດັບ TOP 10!';
-      return;
+    // Always keep the name input & register button visible on the TOP 10 Ranking Registration screen!
+    this.rankFormPanelEl.classList.remove('is-hidden');
+
+    if (!this.rankNameInputEl.value) {
+      try {
+        const savedName = localStorage.getItem('nekolao_last_player_name');
+        if (savedName) this.rankNameInputEl.value = savedName;
+      } catch {
+        // Ignore storage error
+      }
     }
 
     if (this.hasRegisteredCurrentRun) {
       this.rankRegisterBoxEl.classList.add('is-top10');
-      this.rankFormPanelEl.classList.add('is-hidden');
       this.rankRegisteredBannerEl.classList.remove('is-hidden');
       const rankLabel = this.registeredRank ? `ອັນດັບທີ #${this.registeredRank}` : 'ບັນທຶກແລ້ວ';
-      this.rankStatusHeadingEl.textContent = `🎉 ລົງທະບຽນເຂົ້າ TOP 10 ສຳເລັດແລ້ວ!`;
-      this.rankStatusSubEl.textContent = `ຊື່ຂອງເຈົ້າປາກົດຢູ່ໃນຕາຕະລາງອັນດັບ TOP 10 ດ້ານລຸ່ມແລ້ວ`;
+      this.rankStatusHeadingEl.textContent = `🎉 ລົງທະບຽນເຂົ້າ TOP 10 ສຳເລັດແລ້ວ! (${rankLabel})`;
+      this.rankStatusSubEl.textContent =
+        'ເຈົ້າສາມາດແກ້ໄຂຊື່ດ້ານລຸ່ມ ແລ້ວກົດບັນທຶກອີກຄັ້ງໄດ້ເລີຍ:';
+      this.rankSubmitBtnEl.textContent = `🏆 ອັບເດດຊື່ໃນອັນດັບ TOP 10 (UPDATE NAME)`;
       this.rankRegisteredBannerEl.textContent = `✅ ${rankLabel} • ${this.registeredPlayerName} (${formatDigitalTime(
         clearSeconds
       )})`;
       return;
     }
 
-    const provisionalRank = this.leaderboard.computeProvisionalRank(clearSeconds);
-    if (provisionalRank !== null) {
+    this.rankRegisteredBannerEl.classList.add('is-hidden');
+    const checkSeconds = clearSeconds >= 1.0 ? clearSeconds : 180.0;
+    const provisionalRank = this.leaderboard.computeProvisionalRank(checkSeconds);
+
+    if (isGameCleared && provisionalRank !== null) {
       this.rankRegisterBoxEl.classList.add('is-top10');
-      this.rankFormPanelEl.classList.remove('is-hidden');
-      this.rankRegisteredBannerEl.classList.add('is-hidden');
       this.rankStatusHeadingEl.textContent = `🎉 ຕິດອັນດັບ TOP 10! ປັດຈຸບັນເຈົ້າຢູ່ອັນດັບທີ #${provisionalRank}!`;
       this.rankStatusSubEl.textContent = `ໃສ່ຊື່ຂອງເຈົ້າເພື່ອລົງທະບຽນສະຖິຕິອັນດັບທີ #${provisionalRank} (${formatDigitalTime(
         clearSeconds
       )}):`;
       this.rankSubmitBtnEl.textContent = `🏆 ລົງທະບຽນອັນດັບທີ #${provisionalRank} (REGISTER)`;
-
-      if (!this.rankNameInputEl.value) {
-        try {
-          const savedName = localStorage.getItem('nekolao_last_player_name');
-          if (savedName) this.rankNameInputEl.value = savedName;
-        } catch {
-          // Ignore storage error
-        }
-      }
+    } else if (provisionalRank !== null) {
+      this.rankRegisterBoxEl.classList.add('is-top10');
+      this.rankStatusHeadingEl.textContent = `🏆 ລົງທະບຽນຊື່ເຂົ້າຕາຕະລາງຈັດອັນດັບ TOP 10 (ປັດຈຸບັນອັນດັບ #${provisionalRank})`;
+      this.rankStatusSubEl.textContent =
+        'ກະລຸນາໃສ່ຊື່ຂອງເຈົ້າດ້ານລຸ່ມ ແລ້ວກົດປຸ່ມລົງທະບຽນເຂົ້າ TOP 10:';
+      this.rankSubmitBtnEl.textContent = `🏆 ລົງທະບຽນຊື່ເຂົ້າ TOP 10 (REGISTER)`;
     } else {
       const entries = this.leaderboard.getEntries();
-      const tenthTime = entries.length >= 10 ? formatDigitalTime(entries[9].timeSeconds) : '09:50.0';
+      const tenthTime = entries.length >= 10 ? formatDigitalTime(entries[9].timeSeconds) : '09:50.00';
       this.rankRegisterBoxEl.classList.remove('is-top10');
-      this.rankFormPanelEl.classList.add('is-hidden');
-      this.rankRegisteredBannerEl.classList.add('is-hidden');
       this.rankStatusHeadingEl.textContent = `⏱️ ເວລາຂອງເຈົ້າ: ${formatDigitalTime(clearSeconds)}`;
-      this.rankStatusSubEl.textContent = `ສະຖິຕິອັນດັບທີ #10 ປັດຈຸບັນແມ່ນ ${tenthTime} — ລອງຫຼິ້ນອີກຄັ້ງເພື່ອຕິດ TOP 10!`;
+      this.rankStatusSubEl.textContent = `ສະຖິຕິອັນດັບທີ #10 ແມ່ນ ${tenthTime} — ໃສ່ຊື່ເພື່ອບັນທຶກສະຖິຕິຂອງເຈົ້າ:`;
+      this.rankSubmitBtnEl.textContent = `🏆 ບັນທຶກຊື່ຂອງເຈົ້າ (REGISTER)`;
     }
   }
 
@@ -2210,20 +2226,25 @@ export class HUDAndPhotoMode {
       }
       .nl-rank-name-input {
         width: 100%;
-        padding: 10px 13px;
+        padding: 11px 14px;
         border-radius: 12px;
-        border: 1.5px solid rgba(255, 209, 102, 0.75);
-        background: rgba(12, 9, 6, 0.88);
+        border: 2px solid #ffd166;
+        background: rgba(12, 9, 6, 0.94);
         color: #fff9f0;
         font-family: inherit;
-        font-size: 0.92rem;
+        font-size: 16px !important;
         font-weight: 700;
         text-align: center;
         outline: none;
+        user-select: text !important;
+        -webkit-user-select: text !important;
+        touch-action: manipulation !important;
+        pointer-events: auto !important;
+        cursor: text !important;
       }
       .nl-rank-name-input:focus {
         border-color: #2ec4b6;
-        box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.28);
+        box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.35);
       }
       .nl-rank-submit-btn {
         cursor: pointer;

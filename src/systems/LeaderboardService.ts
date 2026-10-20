@@ -137,15 +137,16 @@ export class LeaderboardService {
   public async submitScore(
     rawName: string,
     timeSeconds: number,
-    coat: string
+    coat: string,
+    existingId?: string | null
   ): Promise<{ entries: LeaderboardEntry[]; rank: number | null; entry: LeaderboardEntry }> {
     const cleanName = rawName.trim().slice(0, 24) || 'ແມວລາວ (Issarapon)';
     this.savePlayerName(cleanName);
 
     const newEntry: LeaderboardEntry = {
-      id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: existingId || `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: cleanName,
-      timeSeconds: Number(timeSeconds.toFixed(2)),
+      timeSeconds: Number(Math.max(0.1, timeSeconds).toFixed(2)),
       coat: coat || 'siamese',
       date: new Date().toISOString().slice(0, 10)
     };
@@ -163,7 +164,7 @@ export class LeaderboardService {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.entries)) {
-          this.saveLocalEntries([...this.entries, ...data.entries]);
+          this.saveLocalEntries([...this.entries, ...data.entries, newEntry]);
         }
       }
     } catch {
