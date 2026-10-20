@@ -65,15 +65,7 @@ function bootstrap(): void {
   let hasSavedProgress = false;
 
   const isAllCleared = (): boolean => {
-    return (
-      wildlife.collectedCount >= wildlife.totalFlowers &&
-      catController.hasWalkedUnderArch &&
-      catController.hasSplashedFountain &&
-      wildlife.koiBattedCount > 0 &&
-      wildlife.pigeonsChasedCount > 0 &&
-      hasSwattedProp &&
-      catController.hasReachedRooftop
-    );
+    return wildlife.collectedCount >= wildlife.totalFlowers;
   };
 
   const SAVE_KEY = 'nekolao_save_v1';
@@ -340,10 +332,6 @@ function bootstrap(): void {
     saveProgress();
     if (count === total) {
       hud.showToast(`🎉 ເກັບດອກຈຳປາຄົບທັງໝົດ ${total} / ${total} ດອກແລ້ວ!`);
-      // If all checklist items aren't done yet, still show the clear time & share dialog for collecting all 30 flowers!
-      if (!isAllCleared()) {
-        hud.showVictoryModal(Math.max(0.1, elapsedRunSeconds), false);
-      }
     } else {
       hud.showToast(`🌼 ເກັບດອກຈຳປາໄດ້: ${count} / ${total}`);
     }

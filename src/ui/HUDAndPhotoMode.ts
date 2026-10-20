@@ -1188,7 +1188,7 @@ export class HUDAndPhotoMode {
       this.rankRegisteredBannerEl.classList.add('is-hidden');
       this.rankStatusHeadingEl.textContent = '🏆 ແຂ່ງຈັບເວລາຊິງອັນດັບ TOP 10';
       this.rankStatusSubEl.textContent =
-        'ເກັບດອກຈຳປາຄົບ 30 ດອກ ແລະ ພາລະກິດຄົບ 6 ຂໍ້ ເພື່ອລົງທະບຽນຊື່ເຂົ້າຕາຕະລາງຈັດອັນດັບ!';
+        'ເກັບດອກຈຳປາໃຫ້ຄົບ 30 ດອກ ເພື່ອຜ່ານເກມ ແລະ ລົງທະບຽນຊື່ເຂົ້າຕາຕະລາງຈັດອັນດັບ TOP 10!';
       return;
     }
 
@@ -1226,7 +1226,7 @@ export class HUDAndPhotoMode {
       }
     } else {
       const entries = this.leaderboard.getEntries();
-      const tenthTime = entries.length >= 10 ? formatDigitalTime(entries[9].timeSeconds) : '09:00.0';
+      const tenthTime = entries.length >= 10 ? formatDigitalTime(entries[9].timeSeconds) : '09:50.0';
       this.rankRegisterBoxEl.classList.remove('is-top10');
       this.rankFormPanelEl.classList.add('is-hidden');
       this.rankRegisteredBannerEl.classList.add('is-hidden');
@@ -1263,14 +1263,13 @@ export class HUDAndPhotoMode {
     this.victoryStatFlowersEl.textContent = `🌼 ດອກຈຳປາ ${this.lastFlowers} / ${this.lastTotalFlowers}`;
     this.victoryStatTasksEl.textContent = `✅ ພາລະກິດ ${this.lastDoneTasks} / 6`;
 
-    const isGameCleared =
-      isFullClear || (this.lastFlowers >= this.lastTotalFlowers && this.lastDoneTasks >= 6);
+    const isGameCleared = isFullClear || this.lastFlowers >= this.lastTotalFlowers;
 
-    if (isGameCleared) {
+    if (this.lastFlowers >= this.lastTotalFlowers && this.lastDoneTasks >= 6) {
       this.victoryBadgeEl.textContent = '🏆 ພາລະກິດສຳເລັດຄົບທຸກຂໍ້! 🏆';
       this.victoryTitleEl.textContent = 'ຊົມເຊີຍ! ສຳຫຼວດສວນປະຕູໄຊສຳເລັດແລ້ວ!';
-    } else if (this.lastFlowers >= this.lastTotalFlowers) {
-      this.victoryBadgeEl.textContent = '🌼 ເກັບດອກຈຳປາຄົບ 30 ດອກແລ້ວ! 🌼';
+    } else if (isGameCleared) {
+      this.victoryBadgeEl.textContent = '🌼 ຜ່ານເກມແລ້ວ! ເກັບດອກຈຳປາຄົບ 30 ດອກ! 🌼';
       this.victoryTitleEl.textContent = 'ຊົມເຊີຍ! ເກັບດອກຈຳປາຄົບທຸກດອກແລ້ວ!';
     } else {
       this.victoryBadgeEl.textContent = '🏆 ຕາຕະລາງຈັດອັນດັບ TOP 10 & ແຊຣ໌ SNS';
