@@ -31,7 +31,7 @@ export interface HUDUpdateData {
 export function formatLaoMinutesSeconds(totalSeconds: number): string {
   const safe = Math.max(0, totalSeconds);
   const mins = Math.floor(safe / 60);
-  const secs = (safe % 60).toFixed(1);
+  const secs = (safe % 60).toFixed(2);
   const secsPadded = Number(secs) < 10 ? `0${secs}` : secs;
   return `${mins} ນາທີ ${secsPadded} ວິນາທີ`;
 }
@@ -41,7 +41,7 @@ export function formatDigitalTime(totalSeconds: number): string {
   const mins = Math.floor(safe / 60)
     .toString()
     .padStart(2, '0');
-  const secs = (safe % 60).toFixed(1).padStart(4, '0');
+  const secs = (safe % 60).toFixed(2).padStart(5, '0');
   return `${mins}:${secs}`;
 }
 

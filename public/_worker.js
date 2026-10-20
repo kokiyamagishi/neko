@@ -1,7 +1,7 @@
-const CACHE_KEY_URL = 'https://nekolao-leaderboard.internal/top10-v2';
+const CACHE_KEY_URL = 'https://nekolao-leaderboard.internal/top10-v3';
 
 const DEFAULT_ENTRIES = [
-  { id: 'seed-1', name: 'Tadashi', timeSeconds: 138.4, coat: 'siamese', date: '2026-10-20' },
+  { id: 'seed-1', name: 'Tadashi', timeSeconds: 58.0, coat: 'siamese', date: '2026-10-20' },
   { id: 'seed-2', name: 'ທ້າວສົມສັກ (VTE)', timeSeconds: 154.8, coat: 'ginger_tabby', date: '2026-10-15' },
   { id: 'seed-3', name: 'Koki @ Issarapon', timeSeconds: 172.5, coat: 'korat', date: '2026-10-15' },
   { id: 'seed-4', name: 'ແມວຄຳ (Patuxay)', timeSeconds: 195.2, coat: 'calico', date: '2026-10-15' },
@@ -19,10 +19,11 @@ function normalizeAndSort(list) {
     if (!item || typeof item.timeSeconds !== 'number' || item.timeSeconds <= 0) continue;
     const id = String(item.id || `${item.name}-${item.timeSeconds}`);
     const name = id === 'seed-1' ? 'Tadashi' : String(item.name || 'ແມວລາວ').slice(0, 24);
+    const timeSeconds = id === 'seed-1' ? 58.0 : Number(item.timeSeconds.toFixed(2));
     map.set(id, {
       id,
       name,
-      timeSeconds: Number(item.timeSeconds.toFixed(2)),
+      timeSeconds,
       coat: String(item.coat || 'siamese'),
       date: String(item.date || new Date().toISOString().slice(0, 10))
     });

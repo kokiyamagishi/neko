@@ -6,11 +6,11 @@ export interface LeaderboardEntry {
   date: string;
 }
 
-const STORAGE_KEY = 'nekolao_leaderboard_v2';
+const STORAGE_KEY = 'nekolao_leaderboard_v3';
 const PLAYER_NAME_KEY = 'nekolao_player_name_v1';
 
 const DEFAULT_SEED_ENTRIES: LeaderboardEntry[] = [
-  { id: 'seed-1', name: 'Tadashi', timeSeconds: 138.4, coat: 'siamese', date: '2026-10-20' },
+  { id: 'seed-1', name: 'Tadashi', timeSeconds: 58.0, coat: 'siamese', date: '2026-10-20' },
   { id: 'seed-2', name: 'ທ້າວສົມສັກ (VTE)', timeSeconds: 154.8, coat: 'ginger_tabby', date: '2026-10-15' },
   { id: 'seed-3', name: 'Koki @ Issarapon', timeSeconds: 172.5, coat: 'korat', date: '2026-10-15' },
   { id: 'seed-4', name: 'ແມວຄຳ (Patuxay)', timeSeconds: 195.2, coat: 'calico', date: '2026-10-15' },
@@ -36,10 +36,11 @@ export class LeaderboardService {
       const id = String(item.id || `${item.name}-${item.timeSeconds}`);
       const name =
         id === 'seed-1' ? 'Tadashi' : String(item.name || 'ແມວລາວ').trim().slice(0, 24) || 'ແມວລາວ';
+      const timeSeconds = id === 'seed-1' ? 58.0 : Number(item.timeSeconds.toFixed(2));
       byId.set(id, {
         id,
         name,
-        timeSeconds: Number(item.timeSeconds.toFixed(2)),
+        timeSeconds,
         coat: String(item.coat || 'siamese'),
         date: String(item.date || new Date().toISOString().slice(0, 10))
       });
